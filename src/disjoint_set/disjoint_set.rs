@@ -79,7 +79,7 @@ Therefore O(α(n)) ≈ O(1).
 
 ```
 extern crate advanced_collections;
-use advanced_collections::DisjointSet;
+use advanced_collections::disjoint_set::DisjointSet;
 use std::iter::FromIterator;
 
 fn main(){

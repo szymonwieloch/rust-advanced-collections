@@ -1,8 +1,10 @@
-use std::mem::{ManuallyDrop, uninitialized, swap, drop};
+use std::mem::{ManuallyDrop, uninitialized, swap, drop, transmute};
 use std::ops::{Index, IndexMut};
-use std::iter::{Extend, FromIterator};
-use std::cmp::{Ord, PartialEq};
+use std::iter::{Extend, FromIterator, IntoIterator};
+use std::cmp::{Ord, PartialEq, Eq};
 use std::fmt;
+
+use super::iter::{Iter, IterMut, Drain, IntoIter};
 
 
 #[derive(Clone)]
@@ -43,11 +45,14 @@ impl<T> CircularBuffer<T> {
     }
 
     pub fn resize (&mut self, size: usize) {
-        /*let new_buf = Vec::from_iter(self.drain().map(|x| ManuallyDrop::new(x)));
-        new_buf.append(unsafe{uninitialized()});
-        self.buffer = new_buf.it */
-        unimplemented!()
-
+        let mut new_buf = Vec::from_iter(self.drain().take(size).map(|x| ManuallyDrop::new(x)));
+        for _ in 0..size -new_buf.len() + 1{
+            new_buf.append(unsafe{uninitialized()});
+        }
+        new_buf.shrink_to_fit();
+        self.buffer = new_buf.into_boxed_slice();
+        self.start = 0;
+        self.end = self.buffer.len() -1;
     }
 
     pub fn is_empty(&self) -> bool {
@@ -107,22 +112,25 @@ impl<T> CircularBuffer<T> {
         }
     }
 
-    pub fn iter(&self)  {
-        unimplemented!()
+    pub fn iter(&self) -> Iter<T> {
+
+        let (a,b) = self.slices();
+        a.iter().chain(b.iter())
     }
 
 
-    pub fn iter_mut(&mut self) {
-        unimplemented!()
+    pub fn iter_mut(&mut self) -> IterMut<T> {
+        let (a,b) = self.slices_mut();
+        a.iter_mut().chain(b.iter_mut())
     }
     
 
-    pub fn append(&mut self) {
-        unimplemented!()
+    pub fn append(&mut self, other: &mut Self) {
+        self.extend(other.drain())
     }
 
-    pub fn drain<R>(&mut self) {
-        unimplemented!()
+    pub fn drain(&mut self) -> Drain<T>{
+        Drain::new(self)
     }
 
     pub fn first(&self) -> Option<&T> {
@@ -158,15 +166,35 @@ impl<T> CircularBuffer<T> {
     }
 
     pub fn slices(&self) -> (&[T], &[T]){
-        unimplemented!()
+        let (a,b) = if self.start <= self.end {
+            (&self.buffer[self.start..self.end], &self.buffer[0..0])
+        } else {
+            (&self.buffer[self.start..], &self.buffer[..self.end])
+        };
+
+        //ManuallyDrop is a zero-cost wrapper, can be safely converted into slice of T
+        unsafe{(transmute(a), transmute(b))}
     }
 
-    pub fn slices_mut(&self) -> (&mut[T], &mut [T]) {
-        unimplemented!()
+    pub fn slices_mut(&mut self) -> (&mut[T], &mut [T]) {
+        let (a,b) = if self.start <= self.end {
+            let (x, y) = self.buffer.split_at_mut(self.end);
+            (&mut x[..self.start], &mut y[0..0])
+        } else {
+            let (x, y) = self.buffer.split_at_mut(self.start);
+            (y,  &mut x[..self.end])
+        };
+
+        //ManuallyDrop is a zero-cost wrapper, can be safely converted into slice of T
+        unsafe{(transmute(a), transmute(b))}
     }
 
-    pub fn linearize(&mut self) {
-        unimplemented!()
+    pub fn linearize(&mut self) -> &mut [T]{
+        self.buffer.rotate_left(self.start);
+        self.end = self.len();
+        self.start = 0;
+        //ManuallyDrop is a zero-cost wrapper, can be safely converted into slice of T
+        unsafe{transmute(&mut self.buffer[..self.end])}
     }
 
     pub fn swap(&mut self, a: usize, b: usize) {
@@ -267,6 +295,67 @@ impl <T> fmt::Debug for CircularBuffer<T> {
     }
 }
 
+impl <T> FromIterator<T> for CircularBuffer<T>{
+    fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
+        let mut buf = Vec::from_iter(iter.into_iter().map(|x| ManuallyDrop::new(x)));
+        buf.push(unsafe{uninitialized()});
+
+        let end = buf.len() -1;
+        Self {
+            buffer: buf.into_boxed_slice(),
+            start: 0,
+            end
+        }
+    }
+}
+
+impl <T> Extend<T> for CircularBuffer<T> {
+    fn extend<I: IntoIterator<Item=T>>(&mut self, iter: I) {
+
+        for el in iter{
+            self.push_back(el);
+        }
+    }
+}
+
+impl <'a, T> Extend<&'a T> for CircularBuffer<T> where T: 'a+Clone{
+    fn extend<I: IntoIterator<Item=&'a T>>(&mut self, iter: I) {
+
+        for el in iter{
+            self.push_back(el.clone());
+        }
+    }
+}
+
+impl <T> IntoIterator for CircularBuffer<T>{
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
+        IntoIter::new(self)
+    }
+}
+
+
+impl <'a, T> IntoIterator for &'a CircularBuffer<T>{
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
+        self.iter()
+    }
+}
+
+impl <'a, T> IntoIterator for &'a mut CircularBuffer<T>{
+    type Item = &'a mut T;
+    type IntoIter = IterMut<'a, T>;
+
+    fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
+        self.iter_mut()
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {
@@ -349,7 +438,6 @@ mod tests {
 
     use std::rc::Rc;
     use std::cell::RefCell;
-    use std::ops::AddAssign;
 
     struct Droppable {
         pub counter: Rc<RefCell<usize>>

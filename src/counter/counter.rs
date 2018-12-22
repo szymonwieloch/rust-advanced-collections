@@ -27,7 +27,7 @@ where k - number of unique elements in the initializing series.
 
 ```
 extern crate advanced_collections;
-use advanced_collections::Counter;
+use advanced_collections::counter::Counter;
 use std::iter::FromIterator;
 
 fn main(){

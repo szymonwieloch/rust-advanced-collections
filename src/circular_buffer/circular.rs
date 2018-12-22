@@ -111,17 +111,11 @@ impl<T> CircularBuffer<T> {
         unimplemented!()
     }
 
-    pub fn riter(&self)  {
-        unimplemented!()
-    }
 
     pub fn iter_mut(&mut self) {
         unimplemented!()
     }
-
-    pub fn riter_mut(&mut self) {
-        unimplemented!()
-    }
+    
 
     pub fn append(&mut self) {
         unimplemented!()
@@ -132,15 +126,35 @@ impl<T> CircularBuffer<T> {
     }
 
     pub fn first(&self) -> Option<&T> {
-        unimplemented!()
+        if self.is_empty(){
+            None
+        } else {
+            Some(&* self.buffer[self.internal_index(0)])
+        }
     }
 
     pub fn first_mut(&mut self) -> Option<&mut T> {
-        unimplemented!()
+        if self.is_empty(){
+            None
+        } else {
+            Some(&mut *self.buffer[self.internal_index(0)])
+        }
     }
 
     pub fn last(&self) -> Option<&T> {
-        unimplemented!()
+        if self.is_empty(){
+            None
+        } else {
+            Some(&* self.buffer[self.internal_index(self.len()-1)])
+        }
+    }
+
+    pub fn last_mut(&mut self) -> Option<&T> {
+        if self.is_empty(){
+            None
+        } else {
+            Some(&mut * self.buffer[self.internal_index(self.len()-1)])
+        }
     }
 
     pub fn slices(&self) -> (&[T], &[T]){
@@ -156,11 +170,14 @@ impl<T> CircularBuffer<T> {
     }
 
     pub fn swap(&mut self, a: usize, b: usize) {
-        unimplemented!()
+        self.buffer.swap(self.internal_index(a), self.internal_index(b));
     }
 
     pub fn reverse(&mut self) {
-        unimplemented!()
+        for a in 0..self.len()/2 {
+            let b = self.len() - a - 1;
+            self.buffer.swap(self.internal_index(a), self.internal_index(b));
+        }
     }
 
 //private helpers

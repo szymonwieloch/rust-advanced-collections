@@ -7,6 +7,7 @@ use std::fmt;
 use super::iter::{Iter, IterMut, Drain, IntoIter};
 
 
+///Circular buffer implementation
 #[derive(Clone)]
 pub struct CircularBuffer<T> {
     buffer: Box<[ManuallyDrop<T>]>,
@@ -15,10 +16,38 @@ pub struct CircularBuffer<T> {
 }
 
 impl<T> CircularBuffer<T> {
+    /**
+    Creates a new instance of `CircularBuffer` with the given capacity.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let cb:CircularBuffer<i32> = CircularBuffer::new(5);
+        assert_eq!(cb.capacity(), 5);
+    }
+    ```
+    */
     pub fn new(capacity: usize) -> Self {
         Self::with_capacity(capacity)
     }
 
+    /**
+    Creates a new instance of `CircularBuffer` with the given capacity.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let cb:CircularBuffer<i32> = CircularBuffer::with_capacity(5);
+        assert_eq!(cb.capacity(), 5);
+    }
+    ```
+    */
     pub fn with_capacity(capacity: usize) -> Self {
 
         let mut buffer = Vec::with_capacity(capacity+1);
@@ -32,6 +61,23 @@ impl<T> CircularBuffer<T> {
         }
     }
 
+    /**
+    Returns current number of elements in the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb:CircularBuffer<i32> = CircularBuffer::new(5);
+        assert_eq!(cb.len(), 0);
+        cb.push_back(1);
+        assert_eq!(cb.len(), 1);
+
+    }
+    ```
+    */
     pub fn len(&self) -> usize {
         if self.start <= self.end {
             self.end - self.start
@@ -40,10 +86,44 @@ impl<T> CircularBuffer<T> {
         }
     }
 
+    /**
+    Returns maximal number of elements that can be stored in the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb:CircularBuffer<i32> = CircularBuffer::new(5);
+        assert_eq!(cb.capacity(), 5);
+        cb.resize(7);
+        assert_eq!(cb.capacity(), 7);
+
+    }
+    ```
+    */
     pub fn capacity(&self) -> usize {
         self.buffer.len() - 1
     }
 
+    /**
+    Changes internal size of the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb:CircularBuffer<i32> = CircularBuffer::new(5);
+        assert_eq!(cb.capacity(), 5);
+        cb.resize(7);
+        assert_eq!(cb.capacity(), 7);
+
+    }
+    ```
+    */
     pub fn resize (&mut self, capacity: usize) {
         let mut new_buf = Vec::with_capacity(capacity+1);
         let to_be_skipped = if self.len()>capacity{
@@ -62,14 +142,73 @@ impl<T> CircularBuffer<T> {
         self.end = elem_num;
     }
 
+
+    /**
+    Checks if the buffer is empty.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb:CircularBuffer<i32> = CircularBuffer::new(5);
+        assert!(cb.is_empty());
+        cb.push_back(1);
+        assert!(!cb.is_empty());
+
+    }
+    ```
+    */
     pub fn is_empty(&self) -> bool {
         self.end == self.start
     }
 
+    /**
+    Checks if the buffer is full.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb:CircularBuffer<i32> = CircularBuffer::new(2);
+        assert!(!cb.is_full());
+        cb.push_back(1);
+        cb.push_back(2);
+        assert!(cb.is_full());
+
+    }
+    ```
+    */
     pub fn is_full(&self) -> bool {
         self.len() == self.capacity()
     }
 
+
+    /**
+    Places elements at the end of the buffer.
+
+    If the buffer is full, it replaces elements from the front of the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb:CircularBuffer<i32> = CircularBuffer::new(3);
+
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        assert_eq!(cb, [1,2,3].as_ref());
+        cb.push_back(4);
+        assert_eq!(cb, [2,3,4].as_ref());
+    }
+    ```
+    */
     pub fn push_back(&mut self, val: T) {
         if self.is_full(){
             if self.capacity() == 0 {
@@ -82,6 +221,30 @@ impl<T> CircularBuffer<T> {
         self.incr_end();
     }
 
+
+
+    /**
+    Places elements at the beginning of the buffer.
+
+    If the buffer is full, it replaces elements from the back of the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb:CircularBuffer<i32> = CircularBuffer::new(3);
+
+        cb.push_front(1);
+        cb.push_front(2);
+        cb.push_front(3);
+        assert_eq!(cb, [3,2,1].as_ref());
+        cb.push_front(4);
+        assert_eq!(cb, [4,3,2].as_ref());
+    }
+    ```
+    */
     pub fn push_front(&mut self, val: T) {
         if self.is_full(){
             if self.capacity() == 0 {
@@ -94,6 +257,23 @@ impl<T> CircularBuffer<T> {
         self.push_at(val, self.start);
     }
 
+    /**
+    Pops an element from the end of the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb = CircularBuffer::from(vec![1,2]);
+
+        assert_eq!(cb.pop_back(), Some(2));
+        assert_eq!(cb.pop_back(), Some(1));
+        assert_eq!(cb.pop_back(), None);
+    }
+    ```
+    */
     pub fn pop_back(&mut self) -> Option<T> {
         if self.is_empty(){
             None
@@ -103,6 +283,23 @@ impl<T> CircularBuffer<T> {
         }
     }
 
+    /**
+    Pops an element from the beginning of the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb = CircularBuffer::from(vec![1,2]);
+
+        assert_eq!(cb.pop_front(), Some(1));
+        assert_eq!(cb.pop_front(), Some(2));
+        assert_eq!(cb.pop_front(), None);
+    }
+    ```
+    */
     pub fn pop_front(&mut self) -> Option<T> {
         if self.is_empty(){
             None
@@ -113,33 +310,132 @@ impl<T> CircularBuffer<T> {
         }
     }
 
+    /**
+    Clears content of the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb = CircularBuffer::from(vec![1,2]);
+        cb.clear();
+        assert!(cb.is_empty());
+    }
+    ```
+    */
     pub fn clear(&mut self) {
         while let Some(val) = self.pop_back() {
             drop(val)
         }
     }
 
+    /**
+    Returns an iterator over the buffer from the front to back.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+    use std::iter::FromIterator;
+
+    fn main(){
+        let mut cb = CircularBuffer::from(vec![1,2,3]);
+        let v = Vec::from_iter(cb.iter());
+        assert_eq!(v, vec![&1,&2,&3]);
+    }
+    ```
+    */
     pub fn iter(&self) -> Iter<T> {
 
         let (a,b) = self.slices();
         a.iter().chain(b.iter())
     }
 
+    /**
+    Returns a mutable iterator over the buffer from the front to back.
 
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+        let mut cb = CircularBuffer::from(vec![1,2,3]);
+        for  a in cb.iter_mut(){
+            *a+= 1;
+        }
+        assert_eq!(cb, [2,3,4].as_ref());
+    }
+    ```
+    */
     pub fn iter_mut(&mut self) -> IterMut<T> {
         let (a,b) = self.slices_mut();
         a.iter_mut().chain(b.iter_mut())
     }
-    
 
+    /**
+    Appends content of one CircularBuffer at the end of another.
+
+    If the buffer is too small for the content, elements from the begging of the buffer
+    get replaced by elements from the end of the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+       let mut c1 = CircularBuffer::from(vec![1,2,3]);
+       let mut c2 = CircularBuffer::from(vec![4,5,6,7]);
+       c1.append(&mut c2);
+       assert_eq!(c1, [5,6,7].as_ref());
+       assert!(c2.is_empty());
+    }
+    ```
+    */
     pub fn append(&mut self, other: &mut Self) {
         self.extend(other.drain())
     }
 
+    /**
+    Returns a draining iterator over the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+    use std::iter::FromIterator;
+
+    fn main(){
+       let mut cb = CircularBuffer::from(vec![1,2,3]);
+       let v = Vec::from_iter(cb.drain());
+       assert_eq!(v, vec![1,2,3]);
+       assert!(cb.is_empty());
+    }
+    ```
+    */
     pub fn drain(&mut self) -> Drain<T>{
         Drain::new(self)
     }
 
+    /**
+    Returns a reference to the first element of the buffer.
+
+    Returns `None` if the buffer is empty.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+       let mut cb = CircularBuffer::from(vec![1,2,3]);
+       assert_eq!(cb.first(), Some(&1));
+    }
+    ```
+    */
     pub fn first(&self) -> Option<&T> {
         if self.is_empty(){
             None
@@ -148,6 +444,23 @@ impl<T> CircularBuffer<T> {
         }
     }
 
+    /**
+    Returns a mutable reference to the first element of the buffer.
+
+    Returns `None` if the buffer is empty.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+       let mut cb = CircularBuffer::from(vec![1,2,3]);
+       *cb.first_mut().unwrap() +=1;
+       assert_eq!(cb, [2,2,3].as_ref());
+    }
+    ```
+    */
     pub fn first_mut(&mut self) -> Option<&mut T> {
         if self.is_empty(){
             None
@@ -156,6 +469,22 @@ impl<T> CircularBuffer<T> {
         }
     }
 
+    /**
+    Returns a reference to the last element of the buffer.
+
+    Returns `None` if the buffer is empty.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+      let mut cb = CircularBuffer::from(vec![1,2,3]);
+      assert_eq!(cb.last(), Some(&3));
+    }
+    ```
+    */
     pub fn last(&self) -> Option<&T> {
         if self.is_empty(){
             None
@@ -164,6 +493,23 @@ impl<T> CircularBuffer<T> {
         }
     }
 
+    /**
+    Returns a mutable reference to the last element of the buffer.
+
+    Returns `None` if the buffer is empty.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+      let mut cb = CircularBuffer::from(vec![1,2,3]);
+      *cb.last_mut().unwrap() +=1;
+      assert_eq!(cb, [1,2,4].as_ref());
+    }
+    ```
+    */
     pub fn last_mut(&mut self) -> Option<&mut T> {
         if self.is_empty(){
             None
@@ -172,6 +518,26 @@ impl<T> CircularBuffer<T> {
         }
     }
 
+    /**
+    Returns two slices to the internal buffer.
+
+    Because the internal buffer is circular, normally it is not possible to represent it
+    as a single slice of data, but it is possible to represent it as two slices -
+    one after another.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+      let mut cb = CircularBuffer::from(vec![1,2,3]);
+      cb.push_back(4);
+      cb.push_back(5);
+      assert_eq!(cb.slices(), ([3,4].as_ref(), [5].as_ref()));
+    }
+    ```
+    */
     pub fn slices(&self) -> (&[T], &[T]){
         let (a,b) = if self.start <= self.end {
             (&self.buffer[self.start..self.end], &self.buffer[0..0])
@@ -183,6 +549,30 @@ impl<T> CircularBuffer<T> {
         unsafe{(transmute(a), transmute(b))}
     }
 
+    /**
+    Returns two mutable slices to the internal buffer.
+
+    Because the internal buffer is circular, normally it is not possible to represent it
+    as a single slice of data, but it is possible to represent it as two slices -
+    one after another.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+      let mut cb = CircularBuffer::from(vec![1,2,3]);
+      cb.push_back(4);
+      cb.push_back(5);
+      let (mut a, mut b) = cb.slices_mut();
+      a[0] = 4;
+      a[1] = 5;
+      b[0] = 6;
+      assert_eq!(cb, [4,5,6].as_ref());
+    }
+    ```
+    */
     pub fn slices_mut(&mut self) -> (&mut[T], &mut [T]) {
         let (a,b) = if self.start <= self.end {
             let (x, y) = self.buffer.split_at_mut(self.end);
@@ -196,6 +586,23 @@ impl<T> CircularBuffer<T> {
         unsafe{(transmute(a), transmute(b))}
     }
 
+    /**
+    Rearranges content of the buffer to achieve a continuous region.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+      let mut cb = CircularBuffer::from(vec![1,2,3]);
+      cb.push_back(4);
+      cb.push_back(5);
+      //slices() would now return [3,4], [5]
+      assert_eq!(cb.linearize(), [3,4,5].as_ref());
+    }
+    ```
+    */
     pub fn linearize(&mut self) -> &mut [T]{
         self.buffer.rotate_left(self.start);
         self.end = self.len();
@@ -204,10 +611,40 @@ impl<T> CircularBuffer<T> {
         unsafe{transmute(&mut self.buffer[..self.end])}
     }
 
+    /**
+    Swaps places of two elements in the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+      let mut cb = CircularBuffer::from(vec![1,2,3]);
+      cb.swap(0,1);
+      assert_eq!(cb, [2,1,3].as_ref());
+    }
+    ```
+    */
     pub fn swap(&mut self, a: usize, b: usize) {
         self.buffer.swap(self.internal_index(a), self.internal_index(b));
     }
 
+    /**
+    Reverses order of elements in the buffer.
+
+    # Example
+
+    ```
+    use advanced_collections::circular_buffer::CircularBuffer;
+
+    fn main(){
+      let mut cb = CircularBuffer::from(vec![1,2,3]);
+      cb.reverse();
+      assert_eq!(cb, [3,2,1].as_ref());
+    }
+    ```
+    */
     pub fn reverse(&mut self) {
         for a in 0..self.len()/2 {
             let b = self.len() - a - 1;
@@ -399,6 +836,24 @@ impl<T> PartialEq for CircularBuffer<T>
     }
 }
 
+impl<T> PartialEq<[T]> for CircularBuffer<T>
+
+    where T: PartialEq
+{
+    fn eq(&self, other: &[T]) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+
+impl<'a, T> PartialEq<&'a [T]> for CircularBuffer<T>
+
+    where T: PartialEq
+{
+    fn eq(&self, other: &&'a [T]) -> bool {
+        self.iter().eq(other.iter())
+    }
+}
+
 impl<T> PartialOrd for CircularBuffer<T>
 
     where T: PartialOrd
@@ -410,9 +865,8 @@ impl<T> PartialOrd for CircularBuffer<T>
 
 impl<T> Eq for CircularBuffer<T>
     where T: Eq
-{
+{}
 
-}
 
 impl<T> Ord for CircularBuffer<T>
     where T: Ord
@@ -703,20 +1157,16 @@ mod tests {
     }
 
     #[test]
-    fn test_cmp(){
-        let mut c1 =CircularBuffer::from(vec![1,2,3]);
-        let c2 =CircularBuffer::from(vec![2,3,4]);
-        assert!(c1<c2);
+    fn test_cmp() {
+        let mut c1 = CircularBuffer::from(vec![1, 2, 3]);
+        let c2 = CircularBuffer::from(vec![2, 3, 4]);
+        assert!(c1 < c2);
         c1.push_back(4);
         assert!(c1 == c2);
         c1.push_back(5);
-        assert!(c1>c2);
+        assert!(c1 > c2);
 
-        let c3 = CircularBuffer::from(vec![2,3,4,5]);
-        assert!(c3>c2)
-
-
-
-
+        let c3 = CircularBuffer::from(vec![2, 3, 4, 5]);
+        assert!(c3 > c2)
     }
 }

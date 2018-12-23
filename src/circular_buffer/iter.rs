@@ -31,7 +31,7 @@ impl <'a, T> Iterator for Drain<'a, T>{
     }
 }
 
-///A into iterator over `CircularBuffer<T>`.
+///An iterator that moves out of a `CircularBuffer<T>`.
 pub struct IntoIter<T>{
     buf: CircularBuffer<T>
 }

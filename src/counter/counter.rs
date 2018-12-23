@@ -13,18 +13,6 @@ type IterMut<'a, T> = ::std::collections::hash_map::IterMut<'a, T, usize>;
 /**
 Counts recurring elements from a provided iterable.
 
-This implementation was inspired by the Python Counter class:
-<https://docs.python.org/3.5/library/collections.html#collections.Counter>
-
-# Complexity
-
-- Initialization complexity: O(n)
-- Memory complexity: O(k)
-
-where k - number of unique elements in the initializing series.
-
-# Example
-
 ```
 extern crate advanced_collections;
 use advanced_collections::counter::Counter;
@@ -63,7 +51,20 @@ where
     S: BuildHasher,
 {
 
-    /// Creates a new, empty `Counter`.
+    /**
+    Creates a new, empty `Counter`.
+
+    # Example
+
+    ```
+    use advanced_collections::counter::Counter;
+
+    fn main(){
+        let c: Counter<i32> = Counter::new();
+        assert_eq!(c.len(), 0);
+    }
+    ```
+    */
     pub fn new() -> Counter<T, S> where S: Default{
         Default::default()
     }
@@ -73,6 +74,18 @@ where
 
     The Counter will be able to hold at least capacity elements without reallocating.
     If capacity is 0, the Counter will not allocate.
+
+    # Example
+
+    ```
+    use advanced_collections::counter::Counter;
+
+    fn main(){
+        let c: Counter<i32> = Counter::with_capacity(5);
+        assert_eq!(c.len(), 0);
+        assert!(c.capacity()>=5);
+    }
+    ```
     */
     pub fn with_capacity(capacity: usize) -> Counter<T, S> where S: Default{
         Counter {
@@ -109,6 +122,22 @@ where
 
     This function is needed because Rust does not support template specialization
     and the generic From::from() method uses a suboptimal algorithm.
+
+    # Example
+
+    ```
+    use advanced_collections::counter::Counter;
+    use std::collections::HashMap;
+
+    fn main(){
+        let mut m = HashMap::new();
+        m.insert(3,4);
+        m.insert(5,1);
+
+        let c = Counter::from_hashmap(m);
+        assert_eq!(c.len(), 2);
+    }
+    ```
     */
     pub fn from_hashmap(rhs: HashMap<T, usize, S>) -> Self {
         Self { counter: rhs }
@@ -119,6 +148,19 @@ where
 
     The collection starts with the most common elements.
     Elements with equal counts are ordered arbitrarily
+
+    # Example
+
+    ```
+    use advanced_collections::counter::Counter;
+
+    fn main(){
+        let mut c:Counter<char> = Counter::new();
+        c.extend("abcdaa".chars());
+        let mc = c.into_most_common();
+        assert_eq!(mc[0], ('a', 3));
+    }
+    ```
     */
     pub fn into_most_common(self) -> Vec<(T, usize)> {
         let mut res: Vec<(T, usize)> = Vec::from_iter(self.counter.into_iter());
@@ -131,6 +173,19 @@ where
 
     The collection starts with the most common elements.
     Elements with equal counts are ordered arbitrarily
+
+    # Example
+
+    ```
+    use advanced_collections::counter::Counter;
+
+    fn main(){
+        let mut c:Counter<char> = Counter::new();
+        c.extend("abcdaa".chars());
+        let mc = c.most_common();
+        assert_eq!(mc[0], ('a', 3));
+    }
+    ```
     */
     pub fn most_common(&self) -> Vec<(T, usize)>
     where
@@ -144,6 +199,22 @@ where
         res
     }
 
+    /**
+    Adds a single element count to the collection.
+
+    # Example
+
+    ```
+    use advanced_collections::counter::Counter;
+
+    fn main(){
+        let mut c:Counter<char> = Counter::new();
+        c.push('a');
+        c.push('a');
+        assert_eq!(c[&'a'], 2);
+    }
+    ```
+    */
     pub fn push(&mut self, val: T){
         *self.counter.entry(val).or_insert(0) += 1;
     }

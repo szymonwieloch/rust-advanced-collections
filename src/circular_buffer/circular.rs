@@ -7,7 +7,45 @@ use std::fmt;
 use super::iter::{Iter, IterMut, Drain, IntoIter};
 
 
-///Circular buffer implementation
+/**
+Circular buffer implementation.
+
+# Example
+
+```
+use advanced_collections::circular_buffer::CircularBuffer;
+use std::iter::FromIterator;
+
+fn main(){
+    // circular buffer is always created with the given capacity
+    let mut cb = CircularBuffer::new(3);
+
+    //its typical usage is pushing data do the back and poping from the front
+    cb.push_back(1);
+    cb.push_back(2);
+    cb.push_back(3);
+    assert_eq!(cb.pop_front(), Some(1));
+
+    //when amount of elements exceeds its capacity, the "oldest" elements are removed
+    cb.push_back(4);
+    cb.push_back(5);
+    assert_eq!(cb.pop_front(), Some(3));
+
+    //you can also resize the buffer on the fly if needed
+    cb.resize(4);
+    assert_eq!(cb.capacity(), 4);
+
+    //you can also operate on bulks of data
+    cb.extend(&[6,7,8,9]);
+    let v = Vec::from_iter(cb.drain().take(2));
+    assert_eq!(v, vec![6,7]);
+
+    //or linearize the buffer to obtain one continuous slice
+    assert_eq!(cb.linearize(), &[8,9]);
+
+}
+```
+*/
 #[derive(Clone)]
 pub struct CircularBuffer<T> {
     buffer: Box<[ManuallyDrop<T>]>,
@@ -610,6 +648,8 @@ impl<T> CircularBuffer<T> {
         //ManuallyDrop is a zero-cost wrapper, can be safely converted into slice of T
         unsafe{transmute(&mut self.buffer[..self.end])}
     }
+
+
 
     /**
     Swaps places of two elements in the buffer.

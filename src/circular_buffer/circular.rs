@@ -1,7 +1,7 @@
 use std::mem::{ManuallyDrop, uninitialized, swap, drop, transmute};
 use std::ops::{Index, IndexMut};
 use std::iter::{Extend, FromIterator, IntoIterator};
-use std::cmp::{Ord, PartialEq, Eq};
+use std::cmp::{Ord, PartialEq, Eq, PartialOrd, Ordering};
 use std::fmt;
 
 use super::iter::{Iter, IterMut, Drain, IntoIter};
@@ -44,15 +44,22 @@ impl<T> CircularBuffer<T> {
         self.buffer.len() - 1
     }
 
-    pub fn resize (&mut self, size: usize) {
-        let mut new_buf = Vec::from_iter(self.drain().take(size).map(|x| ManuallyDrop::new(x)));
-        for _ in 0..size -new_buf.len() + 1{
-            new_buf.append(unsafe{uninitialized()});
+    pub fn resize (&mut self, capacity: usize) {
+        let mut new_buf = Vec::with_capacity(capacity+1);
+        let to_be_skipped = if self.len()>capacity{
+            self.len() - capacity
+        } else {
+            0
+        };
+        new_buf.extend(self.drain().skip(to_be_skipped).map(|x| ManuallyDrop::new(x)));
+        let elem_num = new_buf.len();
+        for _ in 0..capacity -new_buf.len() + 1{
+            new_buf.push(ManuallyDrop::new(unsafe{uninitialized()}));
         }
         new_buf.shrink_to_fit();
         self.buffer = new_buf.into_boxed_slice();
         self.start = 0;
-        self.end = self.buffer.len() -1;
+        self.end = elem_num;
     }
 
     pub fn is_empty(&self) -> bool {
@@ -157,7 +164,7 @@ impl<T> CircularBuffer<T> {
         }
     }
 
-    pub fn last_mut(&mut self) -> Option<&T> {
+    pub fn last_mut(&mut self) -> Option<&mut T> {
         if self.is_empty(){
             None
         } else {
@@ -179,7 +186,7 @@ impl<T> CircularBuffer<T> {
     pub fn slices_mut(&mut self) -> (&mut[T], &mut [T]) {
         let (a,b) = if self.start <= self.end {
             let (x, y) = self.buffer.split_at_mut(self.end);
-            (&mut x[..self.start], &mut y[0..0])
+            (&mut x[self.start..self.end], &mut y[0..0])
         } else {
             let (x, y) = self.buffer.split_at_mut(self.start);
             (y,  &mut x[..self.end])
@@ -299,12 +306,40 @@ impl <T> FromIterator<T> for CircularBuffer<T>{
     fn from_iter<I: IntoIterator<Item=T>>(iter: I) -> Self {
         let mut buf = Vec::from_iter(iter.into_iter().map(|x| ManuallyDrop::new(x)));
         buf.push(unsafe{uninitialized()});
+        buf.shrink_to_fit();
 
         let end = buf.len() -1;
         Self {
             buffer: buf.into_boxed_slice(),
             start: 0,
             end
+        }
+    }
+}
+
+impl <'a, T> FromIterator<&'a T> for CircularBuffer<T> where T: Clone{
+    fn from_iter<I: IntoIterator<Item=&'a T>>(iter: I) -> Self {
+        let mut buf = Vec::from_iter(iter.into_iter().map(|x| ManuallyDrop::new(x.clone())));
+        buf.push(unsafe{uninitialized()});
+        buf.shrink_to_fit();
+        let end = buf.len() -1;
+        Self {
+            buffer: buf.into_boxed_slice(),
+            start: 0,
+            end
+        }
+    }
+}
+
+impl<T> From<Vec<T>> for CircularBuffer<T>{
+    fn from(mut v : Vec<T>) -> Self {
+        let buf_len = v.len();
+        v.push(unsafe{uninitialized()});
+        v.shrink_to_fit();
+        Self{
+            buffer: unsafe{transmute(v.into_boxed_slice())},
+            start: 0,
+            end: buf_len
         }
     }
 }
@@ -355,16 +390,50 @@ impl <'a, T> IntoIterator for &'a mut CircularBuffer<T>{
     }
 }
 
+impl<T> PartialEq for CircularBuffer<T>
 
+    where T: PartialEq
+{
+    fn eq(&self, other: &Self) -> bool {
+       self.iter().eq(other.iter())
+    }
+}
+
+impl<T> PartialOrd for CircularBuffer<T>
+
+    where T: PartialOrd
+{
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.iter().partial_cmp(other.iter())
+    }
+}
+
+impl<T> Eq for CircularBuffer<T>
+    where T: Eq
+{
+
+}
+
+impl<T> Ord for CircularBuffer<T>
+    where T: Ord
+{
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.iter().cmp(other.iter())
+    }
+}
 
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
+    fn  cb_eq<T>(cb:&CircularBuffer<T>, exp: &[T]) -> bool where T:Eq {
+        cb.iter().eq(exp.iter())
+    }
+
     #[test]
     fn test_create(){
-        let cb: CircularBuffer<i32> = CircularBuffer::new(5);
+        let _cb: CircularBuffer<i32> = CircularBuffer::new(5);
     }
 
     #[test]
@@ -478,5 +547,176 @@ mod tests {
         assert_eq!(*counter.borrow(), 2);
         drop(cb);
         assert_eq!(*counter.borrow_mut(), 5);
+    }
+
+    #[test]
+    fn test_capacity() {
+        let mut cb = CircularBuffer::new(5);
+        assert_eq!(cb.capacity(), 5);
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        assert!(cb_eq(&cb, &[1,2,3]));
+        assert_eq!(cb.capacity(), 5);
+        cb.resize(7);
+        assert!(cb_eq(&cb, &[1,2,3]));
+        cb.resize(2);
+        assert!(cb_eq(&cb, &[2,3]));
+    }
+
+    #[test]
+    fn test_drain(){
+    let mut cb = CircularBuffer::new(4);
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        let v:Vec<i32> = cb.drain().collect();
+        assert_eq!(v, vec![1,2,3]);
+        assert!(cb.is_empty());
+    }
+
+    #[test]
+    fn test_append(){
+        let mut cb1 = CircularBuffer::new(7);
+        cb1.push_back(1);
+        cb1.push_back(2);
+        cb1.push_back(3);
+
+        let mut cb2 = CircularBuffer::new(3);
+        cb2.push_back(4);
+        cb2.push_back(5);
+        cb2.push_back(6);
+
+        cb1.append(&mut cb2);
+        assert!(cb_eq(&cb1, &[1,2,3,4,5,6]));
+    }
+
+    #[test]
+    fn test_clear(){
+        let mut cb = CircularBuffer::new(7);
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        cb.clear();
+        assert!(cb.is_empty());
+    }
+
+    #[test]
+    fn test_access_elems(){
+        let mut cb = CircularBuffer::new(3);
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        cb.push_back(4);
+
+        assert_eq!(cb.first(), Some(&2));
+        assert_eq!(cb[1], 3);
+        assert_eq!(cb.last(), Some(&4));
+
+        *cb.first_mut().unwrap() = 5;
+        cb[1] = 6;
+        *cb.last_mut().unwrap() = 7;
+
+        assert!(cb_eq(&cb, &[5,6,7]))
+    }
+
+    #[test]
+    fn test_slices(){
+        let mut cb =  CircularBuffer::new(3);
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        let (a,b) = cb.slices();
+        assert_eq!(a, &[1,2,3]);
+        assert_eq!(b, &[]);
+        let (a,b) = cb.slices_mut();
+        assert_eq!(a, &[1,2,3]);
+        assert_eq!(b, &[]);
+        cb.push_back(4);
+        cb.push_back(5);
+        let (a,b) = cb.slices();
+        assert_eq!(a, &[3,4]);
+        assert_eq!(b, &[5]);
+        let (a,b) = cb.slices_mut();
+        assert_eq!(a, &[3,4]);
+        assert_eq!(b, &[5]);
+
+    }
+
+    #[test]
+    fn test_swap(){
+        let mut cb =  CircularBuffer::new(3);
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        cb.push_back(4);
+        assert!(cb_eq(&cb, &[2,3,4]));
+        cb.swap(1,2);
+        assert!(cb_eq(&cb, &[2,4,3]));
+        cb.swap(0,2);
+        assert!(cb_eq(&cb, &[3,4,2]));
+    }
+
+    #[test]
+    fn test_linearize(){
+        let mut cb =  CircularBuffer::new(3);
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        cb.push_back(4);
+        cb.push_back(5);
+        assert_eq!(cb.linearize(), &[3,4,5]);
+    }
+
+    #[test]
+    fn test_reverse(){
+        let mut cb =  CircularBuffer::new(3);
+        cb.push_back(1);
+        cb.push_back(2);
+        cb.push_back(3);
+        cb.push_back(4);
+        cb.push_back(5);
+        cb.reverse();
+        assert!(cb_eq(&cb, &[5,4,3]))
+    }
+
+    #[test]
+    fn test_iters_val(){
+        let mut cb = CircularBuffer::from_iter(vec![1,2,3]);
+        assert!(cb_eq(&cb, &[1,2,3]));
+        assert_eq!(cb.capacity(), 3);
+        cb.extend(vec![4,5]);
+        assert!(cb_eq(&cb, &[3,4,5]));
+        let v = Vec::from_iter(cb.into_iter());
+        assert_eq!(v, vec![3,4,5]);
+    }
+
+    #[test]
+    fn test_iters_ref(){
+        let mut cb = CircularBuffer::from_iter(&[1,2,3]);
+        assert!(cb_eq(&cb, &[1,2,3]));
+        assert_eq!(cb.capacity(), 3);
+        cb.extend(&[4,5]);
+        assert!(cb_eq(&cb, &[3,4,5]));
+        let v = Vec::from_iter(&cb);
+        assert_eq!(v, vec![&3,&4,&5]);
+    }
+
+    #[test]
+    fn test_cmp(){
+        let mut c1 =CircularBuffer::from(vec![1,2,3]);
+        let c2 =CircularBuffer::from(vec![2,3,4]);
+        assert!(c1<c2);
+        c1.push_back(4);
+        assert!(c1 == c2);
+        c1.push_back(5);
+        assert!(c1>c2);
+
+        let c3 = CircularBuffer::from(vec![2,3,4,5]);
+        assert!(c3>c2)
+
+
+
+
     }
 }

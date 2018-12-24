@@ -19,3 +19,5 @@ advanced_collections = "0.1"
 pub mod counter;
 pub mod disjoint_set;
 pub mod circular_buffer;
+
+mod interval;

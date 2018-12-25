@@ -13,7 +13,7 @@ pub struct Interval<T> where T: Ord {
 
 impl<T> Interval<T>  where T: Ord  {
 
-//creation =================================
+//construction and destruction =================================
 
     pub fn new(lower: T, lower_closed: bool, upper: T, upper_closed: bool) -> Self {
         Self::create_checked(lower, lower_closed, upper, upper_closed)
@@ -39,7 +39,24 @@ impl<T> Interval<T>  where T: Ord  {
     }
 
     pub (super) fn create_friendly(lo: T, loc: bool, up: T, upc: bool) -> Self {
-    unimplemented!()
+        let (lo, up, loc, upc) = if lo < up {
+            (lo, up, loc, upc)
+        } else {
+            (up, lo, upc, loc)
+        };
+
+        let imp = if lo == up && (!loc || !upc){
+            None
+        } else {
+            Some(
+                NonEmptyInterval {
+                lo, up, loc, upc
+            }
+            )
+        };
+        Self {
+            imp
+        }
     }
 
     pub fn single(val: T) -> Self where T: Clone{
@@ -72,6 +89,13 @@ impl<T> Interval<T>  where T: Ord  {
     pub fn empty() -> Self {
         Self {
             imp: None
+        }
+    }
+
+    pub fn into_tuple(self) -> Option<(T, bool, T, bool)>{
+        match self.imp {
+            None => None,
+            Some(a) => Some((a.lo, a.loc, a.up, a.upc))
         }
     }
 
@@ -127,7 +151,7 @@ impl<T> Interval<T>  where T: Ord  {
         }
     }
 
-    //contains
+//operations ============================================
 
     pub fn contains_val(&self, val: &T) -> bool {
         !(self > val || self < val)
@@ -153,14 +177,6 @@ impl<T> Interval<T>  where T: Ord  {
         true
     }
 
-    pub fn into_tuple(self) -> Option<(T, bool, T, bool)>{
-        match self.imp {
-            None => None,
-            Some(a) => Some((a.lo, a.loc, a.up, a.upc))
-        }
-    }
-
-    //merge
 
     pub fn can_be_merged(&self, other: &Self) -> bool {
         let (lo, up) = match self.bounds(){
@@ -172,14 +188,7 @@ impl<T> Interval<T>  where T: Ord  {
             None => return true,
             Some(a) => a
         };
-        if lo.val() > oup.val() || (lo.val() == oup.val() && !lo.is_closed() && !oup.is_closed()){
-            return false;
-        }
-
-        if up.val() < olo.val() || (up.val() == olo.val() && ! up.is_closed() && ! olo.is_closed()){
-            return false;
-        }
-        true
+        !(Bound::are_separated(up, olo) || Bound::are_separated(oup, lo))
     }
 
     pub fn into_merged(self, other: Self) -> Result<Self, (Self, Self)>{
@@ -199,7 +208,20 @@ impl<T> Interval<T>  where T: Ord  {
         Ok(Self::new(lo, loc, up, upc))
     }
 
-    //intersection
+    pub fn merge(&self, other: &Self) -> Result<Self, ()> where T:Clone {
+        let (l1, u1) = match self.bounds() {
+            None => return Ok(other.clone()),
+            Some(a) => a
+        };
+        let (l1, u2) =  match other.bounds() {
+            None => return Ok(self.clone()),
+            Some(a) => a
+        };
+
+
+        unimplemented!()
+    }
+
 
     pub fn into_intersection(self, other: Self) -> Self {
         if self.is_empty() {

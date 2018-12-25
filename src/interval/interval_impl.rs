@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use super::bounds::{LowerBound, UpperBound, BoundTrait};
+
 #[derive(Clone, Debug, Copy, Eq, PartialEq, Hash)]
 pub enum IntervalImpl<T> where T: Ord {
     Empty,
@@ -41,16 +43,10 @@ pub struct NonEmptyInterval<T> where T: Ord {
 }
 
 impl <T>  NonEmptyInterval<T> where T:Ord {
-    pub fn upper(&self) -> Bound<T>{
-        Bound{
-            v: &self.up,
-            c: self.upc
-        }
+    pub fn upper(&self) -> UpperBound<&T>{
+        UpperBound::new(&self.up, self.upc)
     }
-    pub fn lower(&self) -> Bound<T>{
-        Bound{
-            v: &self.lo,
-            c: self.loc
-        }
+    pub fn lower(&self) -> LowerBound<&T>{
+        LowerBound::new(&self.lo, self.loc)
     }
 }

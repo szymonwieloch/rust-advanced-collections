@@ -3,6 +3,7 @@
 use std::cmp::{Ord, Ordering};
 use super::interval_impl::{NonEmptyInterval, Bound};
 use std::fmt::{Formatter, Display, Result as FmtResult};
+use super::bounds::{LowerBound, UpperBound, BoundTrait};
 
 use self::Ordering::*;
 
@@ -101,21 +102,21 @@ impl<T> Interval<T>  where T: Ord  {
 
 //accessors ===================================
 
-    pub fn upper(&self) -> Option<Bound<T>> {
+    pub fn upper(&self) -> Option<UpperBound<&T>> {
         match &self.imp{
             None => None,
             Some(a) => Some(a.upper())
         }
     }
 
-    pub fn lower(&self) -> Option<Bound<T>> {
+    pub fn lower(&self) -> Option<LowerBound<&T>> {
         match &self.imp{
             None => None,
             Some(a) => Some(a.lower())
         }
     }
 
-    pub fn bounds(&self) -> Option<(Bound<T>, Bound<T>)> {
+    pub fn bounds(&self) -> Option<(LowerBound<&T>, UpperBound<&T>)> {
         match &self.imp{
             None => None,
             Some(a) => Some((
@@ -188,7 +189,7 @@ impl<T> Interval<T>  where T: Ord  {
             None => return true,
             Some(a) => a
         };
-        !(Bound::are_separated(up, olo) || Bound::are_separated(oup, lo))
+        !(up.is_separated_from(&olo) || oup.is_separated_from(&lo))
     }
 
     pub fn into_merged(self, other: Self) -> Result<Self, (Self, Self)>{
@@ -319,8 +320,8 @@ mod tests {
         let i = Interval::single(5);
         assert_eq!(i.is_lower_closed(), Some(true));
         assert_eq!(i.is_upper_closed(), Some(true));
-        assert_eq!(i.lower().unwrap().val(), &5);
-        assert_eq!(i.upper().unwrap().val(), &5);
+        assert_eq!(*i.lower().unwrap().val(), &5);
+        assert_eq!(*i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 
@@ -329,8 +330,8 @@ mod tests {
         let i = Interval::closed(3,5);
         assert_eq!(i.is_lower_closed(), Some(true));
         assert_eq!(i.is_upper_closed(), Some(true));
-        assert_eq!(i.lower().unwrap().val(), &3);
-        assert_eq!(i.upper().unwrap().val(), &5);
+        assert_eq!(*i.lower().unwrap().val(), &3);
+        assert_eq!(*i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 
@@ -345,8 +346,8 @@ mod tests {
         let i = Interval::lower_closed(3,5);
         assert_eq!(i.is_lower_closed(), Some(true));
         assert_eq!(i.is_upper_closed(), Some(false));
-        assert_eq!(i.lower().unwrap().val(), &3);
-        assert_eq!(i.upper().unwrap().val(), &5);
+        assert_eq!(*i.lower().unwrap().val(), &3);
+        assert_eq!(*i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 
@@ -361,8 +362,8 @@ mod tests {
         let i = Interval::upper_closed(3,5);
         assert_eq!(i.is_lower_closed(), Some(false));
         assert_eq!(i.is_upper_closed(), Some(true));
-        assert_eq!(i.lower().unwrap().val(), &3);
-        assert_eq!(i.upper().unwrap().val(), &5);
+        assert_eq!(*i.lower().unwrap().val(), &3);
+        assert_eq!(*i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 

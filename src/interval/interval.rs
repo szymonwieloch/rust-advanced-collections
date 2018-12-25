@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
 use std::cmp::{Ord, Ordering};
-use super::interval_impl::{NonEmptyInterval, Bound};
+use super::interval_impl::{NonEmptyInterval};
 use std::fmt::{Formatter, Display, Result as FmtResult};
-use super::bounds::{LowerBound, UpperBound, BoundTrait};
+use super::bounds::{LowerBound, UpperBound};
 
 use self::Ordering::*;
 
@@ -18,7 +18,11 @@ impl<T> Interval<T>  where T: Ord  {
 
     pub fn new(lower: T, lower_closed: bool, upper: T, upper_closed: bool) -> Self {
         Self::create_checked(lower, lower_closed, upper, upper_closed)
-}
+    }
+
+    pub fn from_bounds(low: LowerBound<T>, up: UpperBound<T>) -> Self {
+        unimplemented!()
+    }
 
     pub(super) fn create_checked(lo: T, loc: bool, up: T, upc: bool) -> Self {
         if lo > up {
@@ -100,6 +104,13 @@ impl<T> Interval<T>  where T: Ord  {
         }
     }
 
+    pub fn into_bounds(self) -> Option<(LowerBound<T>, UpperBound<T>)> {
+        match self.imp {
+            None => None,
+            Some(a) => Some(a.into_bounds())
+        }
+    }
+
 //accessors ===================================
 
     pub fn upper(&self) -> Option<UpperBound<&T>> {
@@ -169,13 +180,7 @@ impl<T> Interval<T>  where T: Ord  {
             Some(a) => a
         };
 
-        if l.val() > ol.val() || (l.val() == ol.val() && !l.is_closed() && ol.is_closed()){
-            return false;
-        }
-        if u.val() < ou.val() || (u.val() == ou.val() && !u.is_closed() && ou.is_closed()){
-            return false;
-        }
-        true
+        l <= ol && u >= ou
     }
 
 
@@ -202,11 +207,11 @@ impl<T> Interval<T>  where T: Ord  {
         if self.is_empty(){
             return Ok(other);
         }
-        let (l1, l1c, u1, u1c) = self.into_tuple().unwrap();
-        let (l2, l2c, u2, u2c) = other.into_tuple().unwrap();
-        let (lo, loc) = Self::less_bound(l1, l1c, l2, l2c);
-        let (up, upc) = Self::greater_bound(u1, u1c, u2, u2c);
-        Ok(Self::new(lo, loc, up, upc))
+
+        let (l1, u1) = self.into_bounds().unwrap();
+        let (l2, u2) = other.into_bounds().unwrap();
+
+        Ok(Self::from_bounds(l1.min(l2), u1.max(u2)))
     }
 
     pub fn merge(&self, other: &Self) -> Result<Self, ()> where T:Clone {

@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 use super::interval::Interval;
-use super::interval_impl::IntervalImpl;
 use std::cmp::{Ordering, PartialOrd, PartialEq, Ord};
 
 use self::Ordering::*;
@@ -23,10 +22,10 @@ impl<T> PartialOrd<T> for Interval<T> where T: Ord{
     fn lt(&self, val: &T) -> bool {
         match self.upper(){
             None => false,
-            Some(up) => match up.cmp(val){
+            Some(up) => match up.val().cmp(val){
                 Greater => false,
                 Less => true,
-                Equal => ! self.is_upper_closed()
+                Equal => ! up.is_closed()
             }
         }
     }
@@ -34,17 +33,17 @@ impl<T> PartialOrd<T> for Interval<T> where T: Ord{
     fn le(&self, val: &T) -> bool {
         match self.upper() {
             None => false,
-            Some(up) => up <= val
+            Some(up) => up.val() <= val
         }
     }
 
     fn gt(&self, val: &T) -> bool {
         match self.lower(){
             None => false,
-            Some(up) => match up.cmp(val){
+            Some(lo) => match lo.val().cmp(val){
                 Less => false,
                 Greater => true,
-                Equal => !self.is_lower_closed()
+                Equal => !lo.is_closed()
             }
         }
     }
@@ -52,17 +51,16 @@ impl<T> PartialOrd<T> for Interval<T> where T: Ord{
     fn ge(&self, val: &T) -> bool {
         match self.lower() {
             None => false,
-            Some(low) => low >= val
+            Some(low) => low.val() >= val
         }
     }
 }
 
 impl<T> PartialEq<T> for Interval<T>where T: Ord{
     fn eq(&self, val: &T) -> bool {
-        if let IntervalImpl::Closed(ref a, ref b) = self.imp {
-            val == a && val == b
-        } else {
-            false
+        match self.bounds(){
+            None => false,
+            Some((a,b)) => a.val() == val && b.val() == val
         }
     }
 }
@@ -90,10 +88,10 @@ impl<T> PartialOrd for Interval<T> where T: Ord {
             None => return false,
             Some(a) => a
         };
-        match up.cmp(olow) {
+        match up.val().cmp(olow.val()) {
             Less => true,
             Greater => false,
-            Equal => !(self.is_upper_closed() && other.is_lower_closed())
+            Equal => !(up.is_closed() && olow.is_closed())
         }
     }
 
@@ -106,7 +104,7 @@ impl<T> PartialOrd for Interval<T> where T: Ord {
             None => return false,
             Some(a) => a
         };
-        up <= olow
+        up.val() <= olow.val()
     }
 
     fn gt(&self, other: &Self) -> bool {
@@ -118,10 +116,10 @@ impl<T> PartialOrd for Interval<T> where T: Ord {
             None => return false,
             Some(a) => a
         };
-        match low.cmp(oup) {
+        match low.val().cmp(oup.val()) {
             Less => false,
             Greater => true,
-            Equal => !(self.is_upper_closed() && other.is_lower_closed())
+            Equal => !(low.is_closed() && oup.is_closed())
         }
     }
 
@@ -134,7 +132,7 @@ impl<T> PartialOrd for Interval<T> where T: Ord {
             None => return false,
             Some(a) => a
         };
-        low >= oup
+        low.val() >= oup.val()
     }
 }
 

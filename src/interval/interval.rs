@@ -1,119 +1,129 @@
 #![allow(dead_code)]
 
 use std::cmp::{Ord, Ordering};
-use super::interval_impl::IntervalImpl;
+use super::interval_impl::{NonEmptyInterval, Bound};
 use std::fmt::{Formatter, Display, Result as FmtResult};
 
-use self::IntervalImpl::*;
 use self::Ordering::*;
 
 #[derive(Clone, Debug, Copy, Eq, PartialEq, Hash)]
 pub struct Interval<T> where T: Ord {
-    pub (super) imp: IntervalImpl<T>
+    pub (super) imp: Option<NonEmptyInterval<T>>
 }
 
 impl<T> Interval<T>  where T: Ord  {
-    pub fn single(val: T) -> Self where T: Clone{
-        Self{
-            imp: IntervalImpl::Closed(val.clone(), val)
-        }
-    }
 
-    pub fn new(low: T, low_closed: bool, up: T, up_closed: bool) -> Self {
-        if low > up {
+//creation =================================
+
+    pub fn new(lower: T, lower_closed: bool, upper: T, upper_closed: bool) -> Self {
+        Self::create_checked(lower, lower_closed, upper, upper_closed)
+}
+
+    pub(super) fn create_checked(lo: T, loc: bool, up: T, upc: bool) -> Self {
+        if lo > up {
             panic!("Lower bound of an interval needs to be less than the upper one.");
         }
 
-        if low == up &&(!low_closed || !up_closed) {
+        if lo == up && (!loc || !upc) {
             panic!("Single elements need to have closed bounds.");
         }
-        let imp = if low_closed {
-            if up_closed{
-                Closed(low, up)
-            } else {
-                LowerClosed(low, up)
-            }
-        } else {
-            if up_closed {
-                UpperClosed(low, up)
-            } else {
-                Open(low, up)
-            }
-        };
-        Self{
-            imp
+
+        Self {
+            imp: Some(NonEmptyInterval {
+                lo,
+                up,
+                loc,
+                upc,
+            })
         }
     }
 
-    pub fn empty() -> Self {
-        Self {
-            imp: IntervalImpl::Empty
+    pub (super) fn create_friendly(lo: T, loc: bool, up: T, upc: bool) -> Self {
+    unimplemented!()
+    }
+
+    pub fn single(val: T) -> Self where T: Clone{
+        Self{
+            imp: Some(NonEmptyInterval{
+                lo: val.clone(),
+                up: val,
+                loc: true,
+                upc: true
+            })
         }
     }
 
     pub fn open(low: T, up: T) -> Self {
-        Self::new(low, false, up, false)
+        Self::create_checked(low, false, up, false)
     }
 
     pub fn closed(low: T, up: T) -> Self {
-        Self::new(low, true, up, true)
+        Self::create_checked(low, true, up, true)
     }
 
     pub fn lower_closed(low: T, up: T) -> Self {
-        Self::new(low, true, up, false)
+        Self::create_checked(low, true, up, false)
     }
 
     pub fn upper_closed(low: T, up: T) -> Self {
-        Self::new(low, false, up, true)
+        Self::create_checked(low, false, up, true)
     }
 
-    pub fn upper(&self) -> Option<&T> {
-        match self.imp{
-            Empty => None,
-            Open(ref _low, ref up) | Closed(ref _low, ref up) | LowerClosed(ref _low, ref up)
-            | UpperClosed(ref _low, ref up) => Some(up)
+    pub fn empty() -> Self {
+        Self {
+            imp: None
         }
     }
 
-    pub fn lower(&self) -> Option<&T> {
-        match self.imp{
-            Empty => None,
-            Open(ref low, ref _up) | Closed(ref low, ref _up) | LowerClosed(ref low, ref _up)
-            | UpperClosed(ref low, ref _up) => Some(low)
+//accessors ===================================
+
+    pub fn upper(&self) -> Option<Bound<T>> {
+        match &self.imp{
+            None => None,
+            Some(a) => Some(a.upper())
         }
     }
 
-    pub fn range(&self) -> Option<(&T, &T)> {
-        match self.imp{
-            Empty => None,
-            Open(ref low, ref up) | Closed(ref low, ref up) | LowerClosed(ref low, ref up)
-            | UpperClosed(ref low, ref up) => Some((low, up))
+    pub fn lower(&self) -> Option<Bound<T>> {
+        match &self.imp{
+            None => None,
+            Some(a) => Some(a.lower())
+        }
+    }
+
+    pub fn bounds(&self) -> Option<(Bound<T>, Bound<T>)> {
+        match &self.imp{
+            None => None,
+            Some(a) => Some((
+                a.lower(),
+                a.upper()
+            ))
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.imp == IntervalImpl::Empty
+        self.imp.is_none()
     }
 
     pub fn is_single(&self) -> bool {
-        if let IntervalImpl::Closed(ref a, ref b) = self.imp{
-            a == b
+        if let Some(ref a) = self.imp {
+            a.lo == a.up
         } else {
             false
         }
     }
 
-    pub fn is_lower_closed(&self) -> bool {
-        match self.imp{
-            Closed(..) | LowerClosed(..) => true,
-            _=> false
+    pub fn is_lower_closed(&self) -> Option<bool> {
+        match &self.imp{
+            None => None,
+            Some(a) => Some(a.loc)
         }
     }
 
-    pub fn is_upper_closed(&self) -> bool {
-        match self.imp{
-            Closed(..) | UpperClosed(..) => true,
-            _=> false
+    pub fn is_upper_closed(&self) -> Option<bool> {
+        match &self.imp{
+           None => None,
+            Some(a) => Some(a.upc)
         }
     }
 
@@ -124,20 +134,20 @@ impl<T> Interval<T>  where T: Ord  {
     }
 
     pub fn contains_interval(&self, other: &Self) -> bool {
-        let (low, up) = match self.range() {
+        let (l, u) = match self.bounds() {
             None => return other.is_empty(),
             Some(a) => a
         };
 
-        let (olow, oup) = match other.range() {
+        let (ol, ou) = match other.bounds() {
             None => return true,
             Some(a) => a
         };
 
-        if low > olow || (low == olow && !self.is_lower_closed() && other.is_lower_closed()){
+        if l.val() > ol.val() || (l.val() == ol.val() && !l.is_closed() && ol.is_closed()){
             return false;
         }
-        if up < oup || (up == oup && !self.is_upper_closed() && other.is_upper_closed()){
+        if u.val() < ou.val() || (u.val() == ou.val() && !u.is_closed() && ou.is_closed()){
             return false;
         }
         true
@@ -145,31 +155,28 @@ impl<T> Interval<T>  where T: Ord  {
 
     pub fn into_tuple(self) -> Option<(T, bool, T, bool)>{
         match self.imp {
-            Empty => None,
-            Open(lo, up) => Some((lo, false, up, false)),
-            Closed(lo, up) => Some((lo, true, up, true)),
-            LowerClosed(lo, up) => Some((lo, true, up, false)),
-            UpperClosed(lo, up) => Some((lo, false, up, true))
+            None => None,
+            Some(a) => Some((a.lo, a.loc, a.up, a.upc))
         }
     }
 
     //merge
 
     pub fn can_be_merged(&self, other: &Self) -> bool {
-        let (lo, up) = match self.range(){
+        let (lo, up) = match self.bounds(){
             None => return true,
             Some(a) => a
         };
 
-        let (olo, oup) = match other.range() {
+        let (olo, oup) = match other.bounds() {
             None => return true,
             Some(a) => a
         };
-        if lo > oup || (lo == oup && !self.is_lower_closed() && !other.is_upper_closed()){
+        if lo.val() > oup.val() || (lo.val() == oup.val() && !lo.is_closed() && !oup.is_closed()){
             return false;
         }
 
-        if up < olo || (up == olo && ! self.is_upper_closed() && ! other.is_lower_closed()){
+        if up.val() < olo.val() || (up.val() == olo.val() && ! up.is_closed() && ! olo.is_closed()){
             return false;
         }
         true
@@ -239,14 +246,6 @@ impl<T> Interval<T>  where T: Ord  {
         Self::new(lo, loc, up, upc)
     }
 
-    pub(super) fn range_mut(&mut self) ->  Option<(&mut T, & mut T)> {
-        match self.imp {
-            Empty => None,
-            Open(ref mut l, ref mut u) | Closed(ref mut l, ref mut u) | UpperClosed(ref mut l, ref mut u) | LowerClosed(ref mut l, ref mut u)
-            => Some((l, u))
-        }
-    }
-
     fn less_bound(v1: T, v1c: bool, v2: T, v2c: bool) -> (T, bool){
         match v1.cmp(&v2) {
             Greater => (v2, v2c),
@@ -267,13 +266,13 @@ impl<T> Interval<T>  where T: Ord  {
 
 impl<T> Display for Interval<T> where T: Ord + Display {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
-        match self.imp{
-            Empty => write!(f, "Ø"),
-            Open(ref a, ref b) => write!(f, "({},{})", a, b),
-            Closed(ref a, ref b) => write!(f, "[{},{}]", a, b),
-            LowerClosed(ref a, ref b) => write!(f, "[{},{})", a, b),
-            UpperClosed(ref a, ref b) => write!(f, "({},{}]", a, b),
-
+        match &self.imp{
+            None => write!(f, "Ø"),
+            Some(a)=> {
+                let l = if a.loc {'['} else {'('};
+                let r = if a.upc {']'} else {')'};
+                write!(f, "{}{},{}{}", l, a.lo, a.up, r)
+            }
         }
     }
 }
@@ -286,8 +285,8 @@ mod tests {
     #[test]
     fn test_create_empty(){
         let i: Interval<i32> = Interval::empty();
-        assert!(!i.is_lower_closed());
-        assert!(!i.is_upper_closed());
+        assert!(i.is_lower_closed().is_none());
+        assert!(i.is_upper_closed().is_none());
         assert_eq!(i.lower(), None);
         assert_eq!(i.upper(), None);
         assert!(i.is_empty());
@@ -296,20 +295,20 @@ mod tests {
     #[test]
     fn test_create_single(){
         let i = Interval::single(5);
-        assert!(i.is_lower_closed());
-        assert!(i.is_upper_closed());
-        assert_eq!(i.lower(), Some(&5));
-        assert_eq!(i.upper(), Some(&5));
+        assert_eq!(i.is_lower_closed(), Some(true));
+        assert_eq!(i.is_upper_closed(), Some(true));
+        assert_eq!(i.lower().unwrap().val(), &5);
+        assert_eq!(i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 
     #[test]
     fn test_create_closed(){
         let i = Interval::closed(3,5);
-        assert!(i.is_lower_closed());
-        assert!(i.is_upper_closed());
-        assert_eq!(i.lower(), Some(&3));
-        assert_eq!(i.upper(), Some(&5));
+        assert_eq!(i.is_lower_closed(), Some(true));
+        assert_eq!(i.is_upper_closed(), Some(true));
+        assert_eq!(i.lower().unwrap().val(), &3);
+        assert_eq!(i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 
@@ -322,10 +321,10 @@ mod tests {
     #[test]
     fn test_create_lower_closed(){
         let i = Interval::lower_closed(3,5);
-        assert!(i.is_lower_closed());
-        assert!(!i.is_upper_closed());
-        assert_eq!(i.lower(), Some(&3));
-        assert_eq!(i.upper(), Some(&5));
+        assert_eq!(i.is_lower_closed(), Some(true));
+        assert_eq!(i.is_upper_closed(), Some(false));
+        assert_eq!(i.lower().unwrap().val(), &3);
+        assert_eq!(i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 
@@ -338,10 +337,10 @@ mod tests {
     #[test]
     fn test_create_upper_closed(){
         let i = Interval::upper_closed(3,5);
-        assert!(!i.is_lower_closed());
-        assert!(i.is_upper_closed());
-        assert_eq!(i.lower(), Some(&3));
-        assert_eq!(i.upper(), Some(&5));
+        assert_eq!(i.is_lower_closed(), Some(false));
+        assert_eq!(i.is_upper_closed(), Some(true));
+        assert_eq!(i.lower().unwrap().val(), &3);
+        assert_eq!(i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 

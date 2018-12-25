@@ -35,10 +35,8 @@ impl<T> Interval<T>  where T: Ord  {
 
         Self {
             imp: Some(NonEmptyInterval {
-                lo,
-                up,
-                loc,
-                upc,
+                lo: LowerBound::new(lo, loc),
+                up: UpperBound::new(up, upc)
             })
         }
     }
@@ -55,7 +53,8 @@ impl<T> Interval<T>  where T: Ord  {
         } else {
             Some(
                 NonEmptyInterval {
-                lo, up, loc, upc
+                    lo: LowerBound::new(lo, loc),
+                    up: UpperBound::new(up, upc)
             }
             )
         };
@@ -67,10 +66,8 @@ impl<T> Interval<T>  where T: Ord  {
     pub fn single(val: T) -> Self where T: Clone{
         Self{
             imp: Some(NonEmptyInterval{
-                lo: val.clone(),
-                up: val,
-                loc: true,
-                upc: true
+                lo: LowerBound::new(val.clone(), true),
+                up: UpperBound::new(val, true)
             })
         }
     }
@@ -100,39 +97,43 @@ impl<T> Interval<T>  where T: Ord  {
     pub fn into_tuple(self) -> Option<(T, bool, T, bool)>{
         match self.imp {
             None => None,
-            Some(a) => Some((a.lo, a.loc, a.up, a.upc))
+            Some(a) => {
+                let(lo, loc) = a.lo.into_tuple();
+                let (up, upc) = a.up.into_tuple();
+                Some((lo, loc, up, upc))
+            }
         }
     }
 
     pub fn into_bounds(self) -> Option<(LowerBound<T>, UpperBound<T>)> {
         match self.imp {
             None => None,
-            Some(a) => Some(a.into_bounds())
+            Some(a) => Some((a.lo, a.up))
         }
     }
 
 //accessors ===================================
 
-    pub fn upper(&self) -> Option<UpperBound<&T>> {
+    pub fn upper(&self) -> Option<&UpperBound<T>> {
         match &self.imp{
             None => None,
-            Some(a) => Some(a.upper())
+            Some(a) => Some(&a.up)
         }
     }
 
-    pub fn lower(&self) -> Option<LowerBound<&T>> {
+    pub fn lower(&self) -> Option<&LowerBound<T>> {
         match &self.imp{
             None => None,
-            Some(a) => Some(a.lower())
+            Some(a) => Some(&a.lo)
         }
     }
 
-    pub fn bounds(&self) -> Option<(LowerBound<&T>, UpperBound<&T>)> {
+    pub fn bounds(&self) -> Option<(&LowerBound<T>, &UpperBound<T>)> {
         match &self.imp{
             None => None,
             Some(a) => Some((
-                a.lower(),
-                a.upper()
+                &a.lo,
+                &a.up
             ))
         }
     }
@@ -152,14 +153,14 @@ impl<T> Interval<T>  where T: Ord  {
     pub fn is_lower_closed(&self) -> Option<bool> {
         match &self.imp{
             None => None,
-            Some(a) => Some(a.loc)
+            Some(a) => Some(a.lo.is_closed())
         }
     }
 
     pub fn is_upper_closed(&self) -> Option<bool> {
         match &self.imp{
            None => None,
-            Some(a) => Some(a.upc)
+            Some(a) => Some(a.up.is_closed())
         }
     }
 
@@ -297,9 +298,9 @@ impl<T> Display for Interval<T> where T: Ord + Display {
         match &self.imp{
             None => write!(f, "Ø"),
             Some(a)=> {
-                let l = if a.loc {'['} else {'('};
-                let r = if a.upc {']'} else {')'};
-                write!(f, "{}{},{}{}", l, a.lo, a.up, r)
+                let l = if a.lo.is_closed() {'['} else {'('};
+                let r = if a.up.is_closed() {']'} else {')'};
+                write!(f, "{}{},{}{}", l, a.lo.val(), a.up.val(), r)
             }
         }
     }
@@ -325,8 +326,8 @@ mod tests {
         let i = Interval::single(5);
         assert_eq!(i.is_lower_closed(), Some(true));
         assert_eq!(i.is_upper_closed(), Some(true));
-        assert_eq!(*i.lower().unwrap().val(), &5);
-        assert_eq!(*i.upper().unwrap().val(), &5);
+        assert_eq!(i.lower().unwrap().val(), &5);
+        assert_eq!(i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 
@@ -335,8 +336,8 @@ mod tests {
         let i = Interval::closed(3,5);
         assert_eq!(i.is_lower_closed(), Some(true));
         assert_eq!(i.is_upper_closed(), Some(true));
-        assert_eq!(*i.lower().unwrap().val(), &3);
-        assert_eq!(*i.upper().unwrap().val(), &5);
+        assert_eq!(i.lower().unwrap().val(), &3);
+        assert_eq!(i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 
@@ -351,8 +352,8 @@ mod tests {
         let i = Interval::lower_closed(3,5);
         assert_eq!(i.is_lower_closed(), Some(true));
         assert_eq!(i.is_upper_closed(), Some(false));
-        assert_eq!(*i.lower().unwrap().val(), &3);
-        assert_eq!(*i.upper().unwrap().val(), &5);
+        assert_eq!(i.lower().unwrap().val(), &3);
+        assert_eq!(i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 
@@ -367,8 +368,8 @@ mod tests {
         let i = Interval::upper_closed(3,5);
         assert_eq!(i.is_lower_closed(), Some(false));
         assert_eq!(i.is_upper_closed(), Some(true));
-        assert_eq!(*i.lower().unwrap().val(), &3);
-        assert_eq!(*i.upper().unwrap().val(), &5);
+        assert_eq!(i.lower().unwrap().val(), &3);
+        assert_eq!(i.upper().unwrap().val(), &5);
         assert!(!i.is_empty());
     }
 

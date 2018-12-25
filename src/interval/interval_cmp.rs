@@ -60,7 +60,7 @@ impl<T> PartialEq<T> for Interval<T>where T: Ord{
     fn eq(&self, val: &T) -> bool {
         match self.bounds(){
             None => false,
-            Some((a,b)) => a.val() == &val && b.val() == &val
+            Some((a,b)) => a.val() == val && b.val() == val
         }
     }
 }

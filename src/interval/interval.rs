@@ -123,6 +123,21 @@ impl<T> Interval<T>  where T: Ord  {
         }
     }
 
+    pub (super) fn fix_after_modification(&mut self){
+        let mut set_empty = false;
+        if let Some(ref mut a) = self.imp {
+            if a.lo.val() > a.up.val() {
+                swap(&mut *a.lo, &mut *a.up)
+            }
+            if a.lo.val() == a.up.val() && (!a.lo.is_closed() || !a.up.is_closed()){
+                set_empty = true;
+            }
+        }
+        if set_empty {
+            self.imp = None;
+        }
+    }
+
 //accessors ===================================
 
     pub fn upper(&self) -> Option<&UpperBound<T>> {

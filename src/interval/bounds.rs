@@ -141,13 +141,13 @@ impl <T> Deref for LowerBound <T> where T: Ord {
     }
 }
 
-/*
+
 impl <T> DerefMut for LowerBound<T> where T: Ord {
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        unimplemented!()
+        &mut self.bound
     }
 }
-*/
+
 
 impl<T> Ord for LowerBound<T> where T: Ord {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -367,6 +367,12 @@ impl <T> Deref for UpperBound<T> where T: Ord {
 
     fn deref(&self) -> &<Self as Deref>::Target {
         &self.bound
+    }
+}
+
+impl <T> DerefMut for UpperBound<T> where T: Ord {
+    fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
+        &mut self.bound
     }
 }
 

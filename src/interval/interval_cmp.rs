@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use super::interval::Interval;
 use std::cmp::{Ordering, PartialOrd, PartialEq, Ord};
 

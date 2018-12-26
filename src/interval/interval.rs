@@ -1,11 +1,7 @@
-#![allow(dead_code)]
-
-use std::cmp::{Ord, Ordering};
+use std::cmp::{Ord};
 use std::fmt::{Formatter, Display, Result as FmtResult};
 use super::bounds::{LowerBound, UpperBound};
 use std::mem::swap;
-
-use self::Ordering::*;
 
 #[derive(Clone, Debug, Copy, Eq, PartialEq, Hash)]
 pub struct NonEmptyInterval<T> where T: Ord {
@@ -127,7 +123,7 @@ impl<T> Interval<T>  where T: Ord  {
         let mut set_empty = false;
         if let Some(ref mut a) = self.imp {
             if a.lo.val() > a.up.val() {
-                swap(&mut *a.lo, &mut *a.up)
+                a.lo.swap(&mut a.up)
             }
             if a.lo.val() == a.up.val() && (!a.lo.is_closed() || !a.up.is_closed()){
                 set_empty = true;
@@ -284,7 +280,7 @@ impl<T> Interval<T>  where T: Ord  {
         Self::from_bounds(l1.max(l2), u1.min(u2))
     }
 
-    pub fn intersection(&mut self, mut other: Self) {
+    pub fn intersection(&mut self, other: Self) {
         if self.is_empty() || other.is_empty() || *self>other || *self < other {
             self.imp = None;
             return;
@@ -336,23 +332,6 @@ impl<T> Interval<T>  where T: Ord  {
             swap(&mut s.up, &mut o.up);
         }
     }
-
-    fn less_bound(v1: T, v1c: bool, v2: T, v2c: bool) -> (T, bool){
-        match v1.cmp(&v2) {
-            Greater => (v2, v2c),
-            Less => (v1, v1c),
-            Equal => (v1, v1c || v2c)
-        }
-    }
-
-    fn greater_bound(v1: T, v1c: bool, v2: T, v2c: bool) -> (T, bool){
-        match v1.cmp(&v2) {
-            Greater => (v1, v1c),
-            Less => (v2, v2c),
-            Equal => (v1, v1c || v2c)
-        }
-    }
-
 }
 
 impl<T> Display for Interval<T> where T: Ord + Display {

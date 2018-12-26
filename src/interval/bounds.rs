@@ -1,11 +1,13 @@
 use std::cmp::Ordering;
 use self::Ordering::*;
+use std::mem::swap;
 
-use std::ops::{Add, AddAssign, Sub, SubAssign,  Mul, MulAssign, Div, DivAssign, Deref, DerefMut};
+use std::ops::{Add, AddAssign, Sub, SubAssign,  Mul, MulAssign, Div, DivAssign};
 
 
-// Bound =============================================
+// Bound ==========================================================================================
 
+///Represent the common part of LowerBound and UpperBound, not intended to be used directly.
 #[derive(Clone, Debug, Copy, Eq, PartialEq, Hash)]
 pub struct Bound<T> where T: Ord {
     val: T,
@@ -13,14 +15,22 @@ pub struct Bound<T> where T: Ord {
 }
 
 impl <T> Bound<T> where T: Ord {
+
+
+    ///Returns value of the given bound.
+    #[inline]
     pub fn val(&self) -> &T {
         &self.val
     }
 
+
+    ///Indicates if the given bound is closed.
+    #[inline]
     pub fn is_closed(&self) -> bool {
         self.is_closed
     }
 
+    ///Creates a new instance
     pub fn new(val: T, is_closed: bool) -> Self {
         Self {
             val,
@@ -28,11 +38,16 @@ impl <T> Bound<T> where T: Ord {
         }
     }
 
+    ///A destructor that converts Bound into primitive types
     pub fn into_tuple(self) -> (T, bool) {
         (self.val, self.is_closed)
     }
 }
 
+/*Math operations ---------------------------------------------------------------------------------
+Bound has a set of mathematical operations
+that are common to both LowerBound and UpperBound
+*/
 impl<T, U> Add<U> for Bound<T> where T: Ord + Add<U, Output=T> {
     type Output = Bound<T>;
 
@@ -101,64 +116,163 @@ impl<T, U> DivAssign<U> for Bound<T> where T:Ord + DivAssign<U> {
     }
 }
 
-//LowerBound ======================================================
+//LowerBound ======================================================================================
+/**
+Represents the lower bound of an interval.
 
+ # Example
+
+```
+use advanced_collections::interval::LowerBound;
+
+fn main(){
+
+    //Lower and upper bounds are different types to prevent mistakes
+    //and because they behave in a diffent way in certain situations, for example when comparing.
+
+    //A bound has two features: its value and information if it is closed or not.
+    let mut l = LowerBound::new(5, true);
+    assert!(l.is_closed());
+    assert_eq!(l.val(), &5);
+
+    //Bounds support common comparison operations
+
+    assert!(l < LowerBound::new(5, false));
+
+    //and common mathematical operations
+
+    l += 3;
+    assert_eq!(l, LowerBound::new(8, true));
+}
+```
+*/
 #[derive(Clone, Debug, Copy, Eq, PartialEq, Hash)]
 pub struct LowerBound<T> where T: Ord {
-    bound: Bound<T>
+    pub(self) bound: Bound<T>
 }
 
 impl <T> LowerBound<T> where T: Ord {
 
+    /**
+    Checks if there is some space between bounds.
+
+     # Example
+
+    ```
+    use advanced_collections::interval::{LowerBound, UpperBound};
+
+    fn main(){
+        let l = LowerBound::new(5, true);
+        assert!(l.is_separated_from(&UpperBound::new(3, true)));
+        assert!(!l.is_separated_from(&UpperBound::new(5, true)));
+        assert!(!l.is_separated_from(&UpperBound::new(7, true)));
+    }
+    ```
+    */
     pub fn is_separated_from(&self, other: &UpperBound<T>) -> bool {
         are_separated(self, other)
     }
 
-    pub fn val(&self) -> &T {
-        &self.val
-    }
 
-    pub fn is_closed(&self) -> bool {
-        self.is_closed
-    }
+    /**
+    Creates a new lower bound.
 
+     # Example
+
+    ```
+    use advanced_collections::interval::LowerBound;
+
+    fn main(){
+        //A bound has two features: its value and information if it is closed or not.
+        let mut l = LowerBound::new(5, true);
+        assert!(l.is_closed());
+        assert_eq!(l.val(), &5);
+    }
+    ```
+    */
     pub fn new(val: T, is_closed: bool) -> Self {
         Self {
             bound: Bound::new(val, is_closed)
         }
     }
 
+    /**
+    Returns the bound value.
+
+    # Example
+
+    ```
+    use advanced_collections::interval::LowerBound;
+
+    fn main(){
+        let mut l = LowerBound::new(5, true);
+        assert_eq!(l.val(), &5);
+    }
+    ```
+    */
+    pub fn val(&self) -> &T{
+        &self.bound.val()
+    }
+
+    /**
+    Indicates if the given bound is closed.
+
+    # Example
+
+    ```
+    use advanced_collections::interval::LowerBound;
+
+    fn main(){
+        let l = LowerBound::new(5, true);
+        assert!(l.is_closed());
+    }
+    ```
+    */
+    pub fn is_closed(&self) -> bool {
+        self.bound.is_closed()
+    }
+
+    pub(super) fn swap(&mut self, other: &mut UpperBound<T>) {
+        swap(&mut self.bound, &mut other.bound)
+    }
+
+    /**
+    Destroys bound and coverts it into primitive types.
+
+    # Example
+
+    ```
+    use advanced_collections::interval::LowerBound;
+
+    fn main(){
+        let l = LowerBound::new(5, true);
+        let (v, c) = l.into_tuple();
+        assert_eq!(v, 5);
+        assert_eq!(c, true);
+    }
+    ```
+    */
     pub fn into_tuple(self) -> (T, bool) {
         self.bound.into_tuple()
     }
 }
 
-impl <T> Deref for LowerBound <T> where T: Ord {
-    type Target = Bound<T>;
+/*Comparison operators ----------------------------------------------------------------------------
+LowerBound support comparing with itself, UpperBound and a single value
 
-    fn deref(&self) -> &<Self as Deref>::Target {
-        &self.bound
-    }
-}
-
-
-impl <T> DerefMut for LowerBound<T> where T: Ord {
-    fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        &mut self.bound
-    }
-}
-
+The behavior is modeled after C++ boost.org interval library.
+*/
 
 impl<T> Ord for LowerBound<T> where T: Ord {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.val.cmp(&other.val) {
+        match self.val().cmp(other.val()) {
             Greater => Greater,
             Less => Less,
             Equal => {
-                if self.is_closed == other.is_closed {
+                if self.is_closed() == other.is_closed() {
                     Equal
                 } else {
-                    if self.is_closed {
+                    if self.is_closed() {
                         Less
                     } else {
                         Greater
@@ -171,14 +285,14 @@ impl<T> Ord for LowerBound<T> where T: Ord {
 
 impl<T> PartialOrd for LowerBound<T> where T: Ord {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self.val.cmp(&other.val) {
+        match self.val().cmp(other.val()) {
             Greater => Some(Greater),
             Less => Some(Less),
             Equal => {
-                if self.is_closed == other.is_closed {
+                if self.is_closed() == other.is_closed() {
                     Some(Equal)
                 } else {
-                    if self.is_closed {
+                    if self.is_closed() {
                         Some(Less)
                     } else {
                         Some(Greater)
@@ -201,36 +315,36 @@ impl<T> PartialOrd<UpperBound<T>> for LowerBound<T> where T: Ord {
     }
 
     fn lt(&self, other: &UpperBound<T>) -> bool {
-        match self.val.cmp(&other.val) {
+        match self.val().cmp(&other.val()) {
             Greater => false,
             Less => true,
-            Equal => !self.is_closed || !other.is_closed()
+            Equal => !self.is_closed() || !other.is_closed()
         }
     }
 
     fn le(&self, other: &UpperBound<T>) -> bool {
-        self.val <= *other.val()
+        self.val() <= other.val()
     }
 
     fn gt(&self, other: &UpperBound<T>) -> bool {
-        match self.val.cmp(&other.val) {
+        match self.val().cmp(&other.val()) {
             Greater => true,
             Less => false,
-            Equal => !self.is_closed || !other.is_closed()
+            Equal => !self.is_closed() || !other.is_closed()
         }
     }
 
     fn ge(&self, other: &UpperBound<T>) -> bool {
-        self.val >= *other.val()
+        self.val() >= other.val()
     }
 }
 
 impl <T> PartialEq<UpperBound<T>> for LowerBound<T> where T: Ord {
-    fn eq(&self, other: &UpperBound<T>) -> bool {
+    fn eq(&self, _other: &UpperBound<T>) -> bool {
         false
     }
 
-    fn ne(&self, other: &UpperBound<T>) -> bool {
+    fn ne(&self, _other: &UpperBound<T>) -> bool {
         false
     }
 }
@@ -238,10 +352,10 @@ impl <T> PartialEq<UpperBound<T>> for LowerBound<T> where T: Ord {
 
 impl <T> PartialOrd<T> for LowerBound<T> where T: Ord {
     fn partial_cmp(&self, other: &T) -> Option<Ordering> {
-        match self.val.cmp(other) {
+        match self.val().cmp(other) {
             Greater => Some(Greater),
             Less => Some(Less),
-            Equal => if self.is_closed {
+            Equal => if self.is_closed() {
                 Some(Equal)
             } else {
                 Some(Greater)
@@ -250,29 +364,31 @@ impl <T> PartialOrd<T> for LowerBound<T> where T: Ord {
     }
 
     fn lt(&self, other: &T) -> bool {
-        self.val < *other
+        self.val() < other
     }
 
     fn le(&self, other: &T) -> bool {
-        self.val < *other || self.val == *other && self.is_closed
+        self.val() < other || self.val() == other && self.is_closed()
     }
 
     fn gt(&self, other: &T) -> bool {
-        self.val > *other || self.val == *other && !self.is_closed
+        self.val() > other || self.val() == other && !self.is_closed()
     }
 
     fn ge(&self, other: &T) -> bool {
-        self.val >= *other
+        self.val() >= other
     }
 }
 
 impl<T> PartialEq<T> for LowerBound<T> where T: Ord {
     fn eq(&self, other: &T) -> bool {
-        self.val == *other && self.is_closed
+        self.val() == other && self.is_closed()
     }
 }
 
-
+/*Mathematical operations -------------------------------------------------------------------------
+LowerBound supports all common mathematical operations.
+*/
 
 impl<T, U> Add<U> for LowerBound<T> where T: Ord + Add<U, Output=T> {
     type Output = Self;
@@ -339,53 +455,139 @@ impl<T, U> DivAssign<U> for LowerBound<T> where T: Ord + DivAssign<U> {
 }
 
 
-//UpperBound ======================================================
+//UpperBound ======================================================================================
+/**
+Represents the upper bound of an interval.
 
+ # Example
+
+```
+use advanced_collections::interval::UpperBound;
+
+fn main(){
+
+    //Lower and upper bounds are different types to prevent mistakes
+    //and because they behave in a diffent way in certain situations, for example when comparing.
+
+    //A bound has two features: its value and information if it is closed or not.
+    let mut u = UpperBound::new(5, true);
+    assert!(u.is_closed());
+    assert_eq!(u.val(), &5);
+
+    //Bounds support common comparison operations
+
+    assert!(u > UpperBound::new(5, false));
+
+    //and common mathematical operations
+
+    u += 3;
+    assert_eq!(u, UpperBound::new(8, true));
+}
+```
+*/
 #[derive(Clone, Debug, Copy, Eq, PartialEq, Hash)]
 pub struct UpperBound<T> where T: Ord {
     bound: Bound<T>
 }
 
 impl <T> UpperBound<T> where T: Ord {
+
+    /**
+    Checks if there is some space between bounds.
+
+     # Example
+
+    ```
+    use advanced_collections::interval::{LowerBound, UpperBound};
+
+    fn main(){
+        let u = UpperBound::new(5, true);
+        assert!(u.is_separated_from(&LowerBound::new(7, true)));
+        assert!(!u.is_separated_from(&LowerBound::new(5, true)));
+        assert!(!u.is_separated_from(&LowerBound::new(3, true)));
+    }
+    ```
+    */
     pub fn is_separated_from(&self, other: &LowerBound<T>) -> bool {
         are_separated(other, self)
     }
 
+    pub fn val(&self) -> &T{
+        &self.bound.val()
+    }
+
+    /**
+    Indicates if the given bound is closed.
+
+    # Example
+
+    ```
+    use advanced_collections::interval::UpperBound;
+
+    fn main(){
+        let u = UpperBound::new(5, true);
+        assert!(u.is_closed());
+    }
+    ```
+    */
+    pub fn is_closed(&self) -> bool {
+        self.bound.is_closed()
+    }
+
+    /**
+    Creates a new upper bound.
+
+     # Example
+
+    ```
+    use advanced_collections::interval::UpperBound;
+
+    fn main(){
+        //A bound has two features: its value and information if it is closed or not.
+        let mut u = UpperBound::new(5, true);
+        assert!(u.is_closed());
+        assert_eq!(u.val(), &5);
+    }
+    ```
+    */
     pub fn new(val: T, is_closed: bool) -> Self{
         Self {
             bound: Bound::new(val, is_closed)
         }
     }
 
+    /**
+    Destroys bound and coverts it into primitive types.
+
+    # Example
+
+    ```
+    use advanced_collections::interval::LowerBound;
+
+    fn main(){
+        let l = LowerBound::new(5, true);
+        let (v, c) = l.into_tuple();
+        assert_eq!(v, 5);
+        assert_eq!(c, true);
+    }
+    ```
+    */
     pub fn into_tuple(self) -> (T, bool) {
         self.bound.into_tuple()
     }
 }
 
-impl <T> Deref for UpperBound<T> where T: Ord {
-    type Target = Bound<T>;
-
-    fn deref(&self) -> &<Self as Deref>::Target {
-        &self.bound
-    }
-}
-
-impl <T> DerefMut for UpperBound<T> where T: Ord {
-    fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        &mut self.bound
-    }
-}
 
 impl<T> Ord for UpperBound<T> where T: Ord {
     fn cmp(&self, other: &Self) -> Ordering {
-        match self.val.cmp(&other.val) {
+        match self.val().cmp(&other.val()) {
             Greater => Greater,
             Less => Less,
             Equal => {
-                if self.is_closed == other.is_closed {
+                if self.is_closed() == other.is_closed() {
                     Equal
                 } else {
-                    if self.is_closed {
+                    if self.is_closed() {
                         Greater
                     } else {
                         Less
@@ -396,16 +598,22 @@ impl<T> Ord for UpperBound<T> where T: Ord {
     }
 }
 
+/*Comparison operators ----------------------------------------------------------------------------
+LowerBound support comparing with itself, UpperBound and a single value
+
+The behavior is modeled after C++ boost.org interval library.
+*/
+
 impl<T> PartialOrd for UpperBound<T> where T: Ord {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self.val.cmp(&other.val) {
+        match self.val().cmp(&other.val()) {
             Greater => Some(Greater),
             Less => Some(Less),
             Equal => {
-                if self.is_closed == other.is_closed {
+                if self.is_closed() == other.is_closed() {
                     Some(Equal)
                 } else {
-                    if self.is_closed {
+                    if self.is_closed() {
                         Some(Greater)
                     } else {
                         Some(Less)
@@ -428,46 +636,46 @@ impl<T> PartialOrd<LowerBound<T>> for UpperBound<T> where T: Ord {
     }
 
     fn lt(&self, other: &LowerBound<T>) -> bool {
-        match self.val.cmp(&other.val) {
+        match self.val().cmp(&other.val()) {
             Greater => false,
             Less => true,
-            Equal => !self.is_closed || !other.is_closed()
+            Equal => !self.is_closed() || !other.is_closed()
         }
     }
 
     fn le(&self, other: &LowerBound<T>) -> bool {
-        self.val <= *other.val()
+        self.val() <= other.val()
     }
 
     fn gt(&self, other: &LowerBound<T>) -> bool {
-        match self.val.cmp(&other.val) {
+        match self.val().cmp(other.val()) {
             Greater => true,
             Less => false,
-            Equal => !self.is_closed || !other.is_closed()
+            Equal => !self.is_closed() || !other.is_closed()
         }
     }
 
     fn ge(&self, other: &LowerBound<T>) -> bool {
-        self.val >= *other.val()
+        self.val() >= other.val()
     }
 }
 
 impl <T> PartialEq<LowerBound<T>> for UpperBound<T> where T: Ord {
-    fn eq(&self, other: &LowerBound<T>) -> bool {
+    fn eq(&self, _other: &LowerBound<T>) -> bool {
         false
     }
 
-    fn ne(&self, other: &LowerBound<T>) -> bool {
+    fn ne(&self, _other: &LowerBound<T>) -> bool {
         false
     }
 }
 
 impl <T> PartialOrd<T> for UpperBound<T> where T: Ord {
     fn partial_cmp(&self, other: &T) -> Option<Ordering> {
-        match self.val.cmp(other) {
+        match self.val().cmp(other) {
             Greater => Some(Greater),
             Less => Some(Less),
-            Equal => if self.is_closed {
+            Equal => if self.is_closed() {
                 Some(Equal)
             } else {
                 Some(Less)
@@ -476,27 +684,31 @@ impl <T> PartialOrd<T> for UpperBound<T> where T: Ord {
     }
 
     fn lt(&self, other: &T) -> bool {
-        self.val < *other || self.val == *other && !self.is_closed
+        self.val() < other || self.val() == other && !self.is_closed()
     }
 
     fn le(&self, other: &T) -> bool {
-        self.val <= *other
+        self.val() <= other
     }
 
     fn gt(&self, other: &T) -> bool {
-        self.val > *other
+        self.val() > other
     }
 
     fn ge(&self, other: &T) -> bool {
-        self.val > *other || self.val == *other && self.is_closed
+        self.val() > other || self.val() == other && self.is_closed()
     }
 }
 
 impl<T> PartialEq<T> for UpperBound<T> where T: Ord {
     fn eq(&self, other: &T) -> bool {
-        self.val == *other && self.is_closed
+        self.val() == other && self.is_closed()
     }
 }
+
+/*Mathematical operations -------------------------------------------------------------------------
+UpperBound supports all common mathematical operations.
+*/
 
 impl<T, U> Add<U> for UpperBound<T> where T: Ord + Add<U, Output=T> {
     type Output = Self;
@@ -562,14 +774,14 @@ impl<T, U> DivAssign<U> for UpperBound<T> where T: Ord + DivAssign<U> {
     }
 }
 
-// Helpers ==================================================================
+// Helpers ========================================================================================
 
 fn  are_separated<T>(l: &LowerBound<T>, u: &UpperBound<T>) -> bool where T: Ord{
     l.val() > u.val() || (u.val() == l.val() && !u.is_closed() && ! l.is_closed())
 }
 
 
-// Tests ======================================================================
+// Tests ==========================================================================================
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.

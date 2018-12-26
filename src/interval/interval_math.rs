@@ -4,7 +4,7 @@ use super::interval::Interval;
 impl<T, U> Add<U> for Interval<T> where T:Ord+Add<U, Output=T>, U:Clone {
     type Output = Self;
 
-    fn add(mut self, rhs: U) -> <Self as Add<U>>::Output {
+    fn add(self, rhs: U) -> <Self as Add<U>>::Output {
         if let Some(mut a) = self.imp {
             a.up = a.up + rhs.clone();
             a.lo = a.lo + rhs;

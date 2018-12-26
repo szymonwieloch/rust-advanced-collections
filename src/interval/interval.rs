@@ -1,11 +1,17 @@
 #![allow(dead_code)]
 
 use std::cmp::{Ord, Ordering};
-use super::interval_impl::{NonEmptyInterval};
 use std::fmt::{Formatter, Display, Result as FmtResult};
 use super::bounds::{LowerBound, UpperBound};
+use std::mem::swap;
 
 use self::Ordering::*;
+
+#[derive(Clone, Debug, Copy, Eq, PartialEq, Hash)]
+pub struct NonEmptyInterval<T> where T: Ord {
+    pub lo: LowerBound<T>,
+    pub up: UpperBound<T>
+}
 
 #[derive(Clone, Debug, Copy, Eq, PartialEq, Hash)]
 pub struct Interval<T> where T: Ord {
@@ -20,8 +26,13 @@ impl<T> Interval<T>  where T: Ord  {
         Self::create_checked(lower, lower_closed, upper, upper_closed)
     }
 
-    pub fn from_bounds(low: LowerBound<T>, up: UpperBound<T>) -> Self {
-        unimplemented!()
+    pub fn from_bounds(lo: LowerBound<T>, up: UpperBound<T>) -> Self {
+        Self{
+            imp:Some(NonEmptyInterval{
+                lo,
+                up
+            })
+        }
     }
 
     pub(super) fn create_checked(lo: T, loc: bool, up: T, upc: bool) -> Self {
@@ -166,6 +177,7 @@ impl<T> Interval<T>  where T: Ord  {
 
 //operations ============================================
 
+//contains
     pub fn contains_val(&self, val: &T) -> bool {
         !(self > val || self < val)
     }
@@ -184,7 +196,7 @@ impl<T> Interval<T>  where T: Ord  {
         l <= ol && u >= ou
     }
 
-
+//merge
     pub fn can_be_merged(&self, other: &Self) -> bool {
         let (lo, up) = match self.bounds(){
             None => return true,
@@ -215,21 +227,32 @@ impl<T> Interval<T>  where T: Ord  {
         Ok(Self::from_bounds(l1.min(l2), u1.max(u2)))
     }
 
-    pub fn merge(&self, other: &Self) -> Result<Self, ()> where T:Clone {
-        let (l1, u1) = match self.bounds() {
-            None => return Ok(other.clone()),
-            Some(a) => a
+    pub fn merge(&mut self, mut other: Self) -> Result<(), Self>{
+        if ! self.can_be_merged(&other) {
+            return Err(other)
+        }
+        let s = match self.imp {
+            None => {
+                swap(self, &mut other);
+                return Ok(());
+            },
+            Some(ref mut a) => a
         };
-        let (l1, u2) =  match other.bounds() {
-            None => return Ok(self.clone()),
-            Some(a) => a
+        let o =  match other.imp {
+            None => return Ok(()),
+            Some(ref mut a) => a
         };
 
-
-        unimplemented!()
+        if o.lo <s.lo {
+            swap(&mut o.lo, &mut s.lo)
+        }
+        if o.up > s.up {
+            swap(&mut o.up, &mut s.up)
+        }
+        Ok(())
     }
 
-
+//intersection
     pub fn into_intersection(self, other: Self) -> Self {
         if self.is_empty() {
             return self;
@@ -241,21 +264,27 @@ impl<T> Interval<T>  where T: Ord  {
         if self>other || self < other {
             return Self::empty();
         }
-        let (l1, l1c, u1, u1c) =  self.into_tuple().unwrap();
-        let (l2, l2c, u2, u2c) = other.into_tuple().unwrap();
+        let (l1, u1) =  self.into_bounds().unwrap();
+        let (l2, u2) = other.into_bounds().unwrap();
+        Self::from_bounds(l1.max(l2), u1.min(u2))
+    }
 
-        let (lo, loc) = match l1.cmp(&l2){
-            Less => (l2, l2c),
-            Greater => (l1, l1c),
-            Equal => (l1, l1c && l2c)
-        };
+    pub fn intersection(&mut self, mut other: Self) {
+        if self.is_empty() || other.is_empty() || *self>other || *self < other {
+            self.imp = None;
+            return;
+        }
+        let s = self.imp.as_mut().unwrap();
+        let mut o = other.imp.unwrap();
 
-        let (up, upc) = match u1.cmp(&u2){
-            Greater => (u2, u2c),
-            Less => (u1, u1c),
-            Equal => (u1, u1c && u2c)
-        };
-        Self::new(lo, loc, up, upc)
+        if s.lo < o.lo {
+            swap(&mut s.lo, &mut o.lo)
+        }
+
+        if s.up > o.up {
+            swap(&mut s.up, &mut o.up)
+        }
+
     }
 
     //span
@@ -266,13 +295,31 @@ impl<T> Interval<T>  where T: Ord  {
         if self.is_empty(){
             return other;
         }
-        let (l1, l1c, u1, u1c) =  self.into_tuple().unwrap();
-        let (l2, l2c, u2, u2c) = other.into_tuple().unwrap();
+        let (l1, u1) =  self.into_bounds().unwrap();
+        let (l2, u2) = other.into_bounds().unwrap();
 
-        let (lo, loc) = Self::less_bound(l1, l1c, l2, l2c);
-        let (up, upc) = Self::greater_bound(u1, u1c, u2, u2c);
+        Self::from_bounds(l1.min(l2), u1.max(u2))
+    }
 
-        Self::new(lo, loc, up, upc)
+    pub fn span(&mut self, mut other: Self) {
+        if other.is_empty() {
+            return;
+        }
+
+        if self.is_empty() {
+            swap(self, &mut other);
+            return;
+        }
+
+        let s = self.imp.as_mut().unwrap();
+        let o = other .imp.as_mut().unwrap();
+
+        if o.lo < s.lo {
+            swap(&mut o.lo, &mut s.lo);
+        }
+        if o.up > s.up {
+            swap(&mut s.up, &mut o.up);
+        }
     }
 
     fn less_bound(v1: T, v1c: bool, v2: T, v2c: bool) -> (T, bool){
@@ -404,7 +451,98 @@ mod tests {
         assert!(i.contains_interval(&e));
         assert!(e.contains_interval(&e));
         assert!(!e.contains_interval(&Interval::open(3,7)));
+    }
 
+    #[test]
+    fn test_can_be_merged(){
+        assert!(Interval::open(4,7).can_be_merged(&Interval::open(5, 9)));
+        assert!(Interval::open(4,7).can_be_merged(&Interval::closed(7, 9)));
+        assert!(Interval::closed(4,7).can_be_merged(&Interval::open(7, 9)));
+        assert!(!Interval::open(4,7).can_be_merged(&Interval::open(7, 9)));
+        assert!(!Interval::open(4,7).can_be_merged(&Interval::open(8, 9)));
+
+        assert!(Interval::open(4,7).can_be_merged(&Interval::open(2, 6)));
+        assert!(Interval::open(4,7).can_be_merged(&Interval::closed(2, 4)));
+        assert!(Interval::closed(4,7).can_be_merged(&Interval::open(2, 4)));
+        assert!(!Interval::open(4,7).can_be_merged(&Interval::open(2, 4)));
+        assert!(!Interval::open(4,7).can_be_merged(&Interval::open(2, 3)));
+    }
+
+    #[test]
+    fn test_into_merged(){
+        assert_eq!(Interval::closed(3,4).into_merged(Interval::closed(4,5)), Ok(Interval::closed(3,5)));
+        assert_eq!(Interval::open(3,4).into_merged(Interval::closed(4,5)), Ok(Interval::upper_closed(3,5)));
+        assert_eq!(Interval::closed(3,4).into_merged(Interval::open(4,5)), Ok(Interval::lower_closed(3,5)));
+        assert_eq!(Interval::open(3,4).into_merged(Interval::open(4,5)), Err((Interval::open(3,4), Interval::open(4,5))));
+    }
+
+    #[test]
+    fn test_merge(){
+        let mut i = Interval::empty();
+        assert_eq!(i.merge(Interval::open(3,5)), Ok(()));
+        assert_eq!(i, Interval::open(3,5));
+
+        assert_eq!(i.merge(Interval::closed(5, 8)), Ok(()));
+        assert_eq!(i, Interval::upper_closed(3,8));
+
+        assert_eq!(i.merge(Interval::closed(1,2)), Err(Interval::closed(1,2)));
+        assert_eq!(i, Interval::upper_closed(3,8));
+
+        assert_eq!(i.merge(Interval::empty()), Ok(()));
+        assert_eq!(i, Interval::upper_closed(3,8));
+    }
+
+    #[test]
+    fn test_span(){
+        let mut i = Interval::empty();
+
+        i.span(Interval::open(3,5));
+        assert_eq!(i, Interval::open(3,5));
+
+        i.span(Interval::empty());
+        assert_eq!(i, Interval::open(3,5));
+
+        i.span(Interval::closed(3,5));
+        assert_eq!(i, Interval::closed(3,5));
+
+        i.span(Interval::closed(7,9));
+        assert_eq!(i, Interval::closed(3,9));
+    }
+
+    #[test]
+    fn test_into_span(){
+        assert_eq!(Interval::empty().into_span(Interval::open(3,5)), Interval::open(3,5));
+
+        assert_eq!(Interval::open(3,5).into_span(Interval::open(3,5)), Interval::open(3,5));
+
+        assert_eq!(Interval::open(3,5).into_span(Interval::closed(3,5)), Interval::closed(3,5));
+
+        assert_eq!(Interval::closed(3,5).into_span(Interval::closed(7,9)), Interval::closed(3,9));
+    }
+
+    #[test]
+    fn test_intersection(){
+        let mut i = Interval::open(3,9);
+
+        i.intersection(Interval::closed(1,8));
+        assert_eq!(i, Interval::upper_closed(3,8));
+
+        i.intersection(Interval::lower_closed(4, 7));
+        assert_eq!(i, Interval::lower_closed(4,7));
+
+        i.intersection(i.clone());
+        assert_eq!(i, Interval::lower_closed(4,7));
+
+        i.intersection(Interval::empty());
+        assert_eq!(i, Interval::empty());
+    }
+
+    #[test]
+    fn test_into_intersection(){
+        assert_eq!(Interval::open(3,9).into_intersection(Interval::closed(1,8)), Interval::upper_closed(3,8));
+        assert_eq!(Interval::upper_closed(3,8).into_intersection(Interval::lower_closed(4, 7)), Interval::lower_closed(4,7));
+        assert_eq!(Interval::lower_closed(4,7).into_intersection(Interval::lower_closed(4,7)), Interval::lower_closed(4,7));
+        assert_eq!(Interval::lower_closed(4,7).into_intersection(Interval::empty()), Interval::empty());
     }
 
 }

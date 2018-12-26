@@ -235,6 +235,45 @@ impl <T> PartialEq<UpperBound<T>> for LowerBound<T> where T: Ord {
     }
 }
 
+
+impl <T> PartialOrd<T> for LowerBound<T> where T: Ord {
+    fn partial_cmp(&self, other: &T) -> Option<Ordering> {
+        match self.val.cmp(other) {
+            Greater => Some(Greater),
+            Less => Some(Less),
+            Equal => if self.is_closed {
+                Some(Equal)
+            } else {
+                Some(Greater)
+            }
+        }
+    }
+
+    fn lt(&self, other: &T) -> bool {
+        self.val < *other
+    }
+
+    fn le(&self, other: &T) -> bool {
+        self.val < *other || self.val == *other && self.is_closed
+    }
+
+    fn gt(&self, other: &T) -> bool {
+        self.val > *other || self.val == *other && !self.is_closed
+    }
+
+    fn ge(&self, other: &T) -> bool {
+        self.val >= *other
+    }
+}
+
+impl<T> PartialEq<T> for LowerBound<T> where T: Ord {
+    fn eq(&self, other: &T) -> bool {
+        self.val == *other && self.is_closed
+    }
+}
+
+
+
 impl<T, U> Add<U> for LowerBound<T> where T: Ord + Add<U, Output=T> {
     type Output = Self;
 
@@ -414,6 +453,42 @@ impl <T> PartialEq<LowerBound<T>> for UpperBound<T> where T: Ord {
 
     fn ne(&self, other: &LowerBound<T>) -> bool {
         false
+    }
+}
+
+impl <T> PartialOrd<T> for UpperBound<T> where T: Ord {
+    fn partial_cmp(&self, other: &T) -> Option<Ordering> {
+        match self.val.cmp(other) {
+            Greater => Some(Greater),
+            Less => Some(Less),
+            Equal => if self.is_closed {
+                Some(Equal)
+            } else {
+                Some(Less)
+            }
+        }
+    }
+
+    fn lt(&self, other: &T) -> bool {
+        self.val < *other || self.val == *other && !self.is_closed
+    }
+
+    fn le(&self, other: &T) -> bool {
+        self.val <= *other
+    }
+
+    fn gt(&self, other: &T) -> bool {
+        self.val > *other
+    }
+
+    fn ge(&self, other: &T) -> bool {
+        self.val > *other || self.val == *other && self.is_closed
+    }
+}
+
+impl<T> PartialEq<T> for UpperBound<T> where T: Ord {
+    fn eq(&self, other: &T) -> bool {
+        self.val == *other && self.is_closed
     }
 }
 
@@ -608,5 +683,89 @@ mod tests {
         assert_eq!(u/2, UpperBound::new(3, false));
         u/= -3;
         assert_eq!(u, UpperBound::new(-2, false));
+    }
+
+    #[test]
+    fn test_lower_val_cmp(){
+        let o = LowerBound::new(5, false);
+
+        assert_ne!(o, 5);
+
+        assert!(o>4);
+        assert!(o>5);
+        assert!(!(o>6));
+
+        assert!(o>=4);
+        assert!(o>=5);
+        assert!(!(o>=6));
+
+        assert!(!(o<4));
+        assert!(!(o<5));
+        assert!(o<6);
+
+        assert!(!(o<=4));
+        assert!(!(o<=5));
+        assert!(o<=6);
+
+        let c = LowerBound::new(5, true);
+        assert_eq!(c, 5);
+
+        assert!(c>4);
+        assert!(!(c>5));
+        assert!(!(c>6));
+
+        assert!(c>=4);
+        assert!(c>=5);
+        assert!(!(c>=6));
+
+        assert!(!(c<4));
+        assert!(!(c<5));
+        assert!(c<6);
+
+        assert!(!(c<=4));
+        assert!(c<=5);
+        assert!(c<=6);
+    }
+
+    #[test]
+    fn test_upper_val_cmp(){
+        let o = UpperBound::new(5, false);
+
+        assert_ne!(o, 5);
+
+        assert!(o>4);
+        assert!(!(o>5));
+        assert!(!(o>6));
+
+        assert!(o>=4);
+        assert!(!(o>=5));
+        assert!(!(o>=6));
+
+        assert!(!(o<4));
+        assert!(o<5);
+        assert!(o<6);
+
+        assert!(!(o<=4));
+        assert!(o<=5);
+        assert!(o<=6);
+
+        let c = LowerBound::new(5, true);
+        assert_eq!(c, 5);
+
+        assert!(c>4);
+        assert!(!(c>5));
+        assert!(!(c>6));
+
+        assert!(c>=4);
+        assert!(c>=5);
+        assert!(!(c>=6));
+
+        assert!(!(c<4));
+        assert!(!(c<5));
+        assert!(c<6);
+
+        assert!(!(c<=4));
+        assert!(c<=5);
+        assert!(c<=6);
     }
 }

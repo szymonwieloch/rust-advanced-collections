@@ -22,36 +22,28 @@ impl<T> PartialOrd<T> for Interval<T> where T: Ord{
     fn lt(&self, val: &T) -> bool {
         match self.upper(){
             None => false,
-            Some(up) => match up.val().cmp(&val){
-                Greater => false,
-                Less => true,
-                Equal => ! up.is_closed()
-            }
+            Some(up) => up < val
         }
     }
 
     fn le(&self, val: &T) -> bool {
         match self.upper() {
             None => false,
-            Some(up) => up.val() <= &val
+            Some(up) => up <= val
         }
     }
 
     fn gt(&self, val: &T) -> bool {
         match self.lower(){
             None => false,
-            Some(lo) => match lo.val().cmp(&val){
-                Less => false,
-                Greater => true,
-                Equal => !lo.is_closed()
-            }
+            Some(lo) => lo > val
         }
     }
 
     fn ge(&self, val: &T) -> bool {
         match self.lower() {
             None => false,
-            Some(low) => low.val() >= &val
+            Some(low) => low >= val
         }
     }
 }
@@ -60,7 +52,7 @@ impl<T> PartialEq<T> for Interval<T>where T: Ord{
     fn eq(&self, val: &T) -> bool {
         match self.bounds(){
             None => false,
-            Some((a,b)) => a.val() == val && b.val() == val
+            Some((a,b)) => a == val && b == val
         }
     }
 }
@@ -80,59 +72,43 @@ impl<T> PartialOrd for Interval<T> where T: Ord {
     }
 
     fn lt(&self, other: &Self) -> bool {
-        let up = match self.upper() {
-            None => return false,
-            Some(a) => a
-        };
-        let olow = match other.lower() {
-            None => return false,
-            Some(a) => a
-        };
-        match up.val().cmp(olow.val()) {
-            Less => true,
-            Greater => false,
-            Equal => !(up.is_closed() && olow.is_closed())
+        match self.upper() {
+            None => false,
+            Some(s ) => match other.lower() {
+                None => false,
+                Some(o) => s < o
+            }
         }
     }
 
     fn le(&self, other: &Self) -> bool {
-        let up = match self.upper() {
-            None => return false,
-            Some(a) => a
-        };
-        let olow = match other.lower() {
-            None => return false,
-            Some(a) => a
-        };
-        up.val() <= olow.val()
+        match self.upper() {
+            None => false,
+            Some(s ) => match other.lower() {
+                None => false,
+                Some(o) => s <= o
+            }
+        }
     }
 
     fn gt(&self, other: &Self) -> bool {
-        let low = match self.lower() {
-            None => return false,
-            Some(a) => a
-        };
-        let oup = match other.upper() {
-            None => return false,
-            Some(a) => a
-        };
-        match low.val().cmp(oup.val()) {
-            Less => false,
-            Greater => true,
-            Equal => !(low.is_closed() && oup.is_closed())
+        match self.lower() {
+            None => false,
+            Some(s ) => match other.upper() {
+                None => false,
+                Some(o) => s > o
+            }
         }
     }
 
     fn ge(&self, other: &Self) -> bool {
-        let low = match self.lower() {
-            None => return false,
-            Some(a) => a
-        };
-        let oup = match other.upper() {
-            None => return false,
-            Some(a) => a
-        };
-        low.val() >= oup.val()
+        match self.lower() {
+            None => false,
+            Some(s ) => match other.upper() {
+                None => false,
+                Some(o) => s >= o
+            }
+        }
     }
 }
 

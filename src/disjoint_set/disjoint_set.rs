@@ -58,19 +58,7 @@ impl<'a, T> SetIter<'a, T> where T:'a+Eq+Hash {
 
 
 /**
-Implementation of disjoint set data structure with path compression and union by rank.
 
-This data structure is also known as union-find or merge-find set.
-It tracks a set of elements partitioned into a number of disjoint (non-overlapping) subsets.
-
-**More:** <https://en.wikipedia.org/wiki/Disjoint-set_data_structure>
-
-# Complexity
-
-- Create new subset complexity: O(1)
-- Union complexity: O(α(n)) ≈ O(1)
-- Search complexity: O(α(n)) ≈ O(1)
-- Memory complexity: O(n)
 
 where α() - very slowly growing function. α(n) < 4 for any reasonable n.
 Therefore O(α(n)) ≈ O(1).

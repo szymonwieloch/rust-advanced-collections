@@ -22,7 +22,9 @@ A special case of an interval is an empty interval, usually noted as:
 ∅
 ```
 
-[More on intervals at Wikipedia](https://en.wikipedia.org/wiki/Interval_(mathematics))
+**More:** <https://en.wikipedia.org/wiki/Interval_(mathematics>
+
+# Inspiration
 
 This implementation is highly inspired by three C++ boost libraries:
 

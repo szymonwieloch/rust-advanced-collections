@@ -1,11 +1,11 @@
 /*!
-#Overview
+# Overview
 
-Trish crate contains a set of high quality (tested, documented, with complete implementation
+This crate contains a set of high quality (tested, documented, with complete implementation
 of standard traits) collections. It is supposed to be an extension of the standard
 `std::collections` crate that contains the most common collections but lacks more advanced ones.
 
-#Usage
+# Usage
 
 Cargo.toml:
 

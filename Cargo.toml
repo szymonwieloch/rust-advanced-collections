@@ -3,6 +3,31 @@ name = "advanced_collections"
 version = "0.1.0"
 authors = ["szymon <szymon.wieloch@gmail.com>"]
 edition = "2018"
+description = '''Library with advanced data structures (collections).
+    Includes counter (hash-bag, multiset), disjoint set (union-find, merge-find), circular buffer (cyclic buffer)
+    and interval (range).
+    '''
+keywords = ["collection", "interval", "boost"]
+categories = ["algorithms", "data-structures"]
+license = "MIT"
+repository = "https://github.com/szymonwieloch/rust-advanced-collections"
 
 [dependencies]
 fnv = "1.0.3"
+
+[badges.travis-ci]
+repository = "szymonwieloch/rust-advanced-collections"
+branch = "master"
+
+[badges.appveyor]
+repository = "szymonwieloch/rust-advanced-collections"
+branch = "master"
+
+
+[badges.codecov]
+repository = "szymonwieloch/rust-advanced-collections"
+branch = "master"
+service = "github"
+
+[badges.is-it-maintained-open-issues]
+repository = "szymonwieloch/rust-advanced-collections"

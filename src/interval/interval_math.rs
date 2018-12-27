@@ -84,7 +84,8 @@ impl<T> MulAssign<T> for Interval<T> where T:Ord+MulAssign+Clone {
     }
 }
 
-
+//TODO: Once the trait Zero is stable, add template specialization for zero
+//so that [1,3] * 0 = empty, not [0,0]
 
 impl<T, U> Div<U> for Interval<T> where T:Ord+Div<U, Output=T>, U:Clone {
     type Output = Self;
@@ -120,7 +121,7 @@ impl<T> Neg for Interval<T> where T: Ord + Neg<Output=T> {
     fn neg(self) -> <Self as Neg>::Output {
         match self.into_tuple() {
             None => Self::empty(),
-            Some((l, lc, u, uc)) => Self::create_friendly(-u, uc, -l, lc)
+            Some((l, lc, u, uc)) =>  Self::create_friendly(-u, uc, -l, lc)
         }
     }
 }

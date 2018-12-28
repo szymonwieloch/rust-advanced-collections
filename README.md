@@ -48,7 +48,7 @@ This crate is open to anybody who would like to participate in the project and h
 Simply fork this repository, add your changes/fixes and create a pull request for me. 
 Just please make sure that your code meets standards of this crate. The code needs to:
 
-- have high quality. This includes conforming to Rust formatting standards, comments, following naming conventions of
+- Have high quality. This includes conforming to Rust formatting standards, comments, following naming conventions of
     other collections etc.
 - Be tested with high code coverage.
 - Be documented and have examples.
